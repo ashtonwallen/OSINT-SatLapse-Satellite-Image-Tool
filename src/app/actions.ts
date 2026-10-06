@@ -43,3 +43,10 @@ export async function deleteArea(id: string): Promise<void> {
   await storage.deleteArea(id)
   changed()
 }
+
+export async function renameArea(id: string, name: string): Promise<void> {
+  const fresh = await storage.getArea(id)
+  if (!fresh || !name.trim()) return
+  await storage.putArea({ ...fresh, name: name.trim().slice(0, 120), updatedAt: new Date().toISOString() })
+  changed()
+}

@@ -262,7 +262,7 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
         {(['map', 'imagery'] as const).map((b) => (
           <button key={b} onClick={() => setBasemap(b)} aria-pressed={basemap === b}
             className={`px-3 py-1.5 ${basemap === b ? 'bg-neutral-200 text-black' : 'text-neutral-300 hover:bg-neutral-800'}`}>
-            {b === 'map' ? 'Map' : 'High-res imagery (US)'}
+            {b === 'map' ? 'Map' : <>Imagery<span className="hidden sm:inline"> (US high-res)</span></>}
           </button>
         ))}
       </div>
