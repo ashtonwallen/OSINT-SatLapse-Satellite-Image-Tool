@@ -209,7 +209,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
                 className="w-full rounded border border-accent bg-panel px-2 py-0.5 text-lg font-semibold outline-none" />
             </form>
           ) : (
-            <button onClick={() => setRenaming(true)} className="group flex max-w-full items-center gap-1.5 text-left" title="Rename">
+            <button type="button" onClick={() => setRenaming(true)} className="group flex max-w-full items-center gap-1.5 text-left" title="Rename">
               <h2 className="truncate text-lg font-semibold leading-tight">{area.name}</h2>
               <Pencil size={13} className="shrink-0 text-neutral-500 opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
@@ -280,7 +280,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
             </div>
             <div className="flex items-center">
               <IconButton label="Previous scene (←)" onClick={() => step(-1)}><StepBack size={16} /></IconButton>
-              <button
+              <button type="button"
                 onClick={() => { setPlaying((p) => !p); setFollow(false) }}
                 aria-label={playing ? 'Pause (space)' : 'Play (space)'}
                 title={playing ? 'Pause (space)' : 'Play (space)'}
@@ -368,7 +368,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
               { v: 'ndwi', label: 'Water', icon: Droplets },
               { v: 'ndbi', label: 'Built & bare', icon: Building },
             ] as const).filter(({ v }) => !aerial || v === 'tc' || v === 'ndvi').map(({ v, label, icon: Icon }) => (
-              <button key={v} onClick={() => setView(v)} aria-pressed={view === v}
+              <button type="button" key={v} onClick={() => setView(v)} aria-pressed={view === v}
                 className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] transition-colors ${
                   view === v ? 'border-accent bg-accent/10 text-white' : 'border-line text-neutral-400 hover:border-neutral-600 hover:text-neutral-200'}`}>
                 <Icon size={16} />{label}
@@ -460,7 +460,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
                 const current = frame?.id === e.sceneId
                 return (
                   <li key={e.id}>
-                    <button onClick={() => fi >= 0 && go(fi)}
+                    <button type="button" onClick={() => fi >= 0 && go(fi)}
                       className={`w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors ${current ? 'bg-amber-500/10 ring-1 ring-amber-500/40' : 'hover:bg-neutral-800'}`}>
                       <div className="flex items-center gap-2">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: EVENT_DOT[e.kind] }} />
@@ -480,7 +480,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
 
       {/* Details + actions */}
       <div className="rounded-lg border border-line">
-        <button onClick={() => setShowDetails((s) => !s)} className="flex w-full items-center justify-between px-3 py-2 text-xs text-neutral-400 hover:text-neutral-200">
+        <button type="button" onClick={() => setShowDetails((s) => !s)} className="flex w-full items-center justify-between px-3 py-2 text-xs text-neutral-400 hover:text-neutral-200">
           Scene & area details <ChevronDown size={14} className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} />
         </button>
         {showDetails && (

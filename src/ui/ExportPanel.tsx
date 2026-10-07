@@ -61,7 +61,7 @@ export function ExportPanel(p: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-sm font-medium"><Film size={14} /> Export timelapse</span>
-        <button onClick={p.onClose} aria-label="Close export" className="text-neutral-500 hover:text-neutral-200"><X size={14} /></button>
+        <button type="button" onClick={p.onClose} aria-label="Close export" className="text-neutral-500 hover:text-neutral-200"><X size={14} /></button>
       </div>
       <Segmented<'gif' | 'mp4'> label="Format" value={format} onChange={setFormat} options={[
         { value: 'mp4', label: 'MP4 video', title: 'Small file, best quality; plays everywhere' },
@@ -91,7 +91,7 @@ export function ExportPanel(p: Props) {
           <div className="h-1.5 overflow-hidden rounded bg-neutral-800"><div className="h-full bg-accent transition-all" style={{ width: `${(100 * progress[0]) / Math.max(1, progress[1])}%` }} /></div>
           <div className="mt-1 flex justify-between text-[11px] text-neutral-400">
             <span>Encoding frame {progress[0]} of {progress[1]}…</span>
-            <button onClick={() => ctrl.current?.abort()} className="hover:text-white">Cancel</button>
+            <button type="button" onClick={() => ctrl.current?.abort()} className="hover:text-white">Cancel</button>
           </div>
         </div>
       ) : (

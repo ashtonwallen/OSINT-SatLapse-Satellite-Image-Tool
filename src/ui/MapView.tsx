@@ -299,7 +299,7 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
       <div ref={container} className="h-full w-full" />
       <div className="absolute right-3 top-3 flex overflow-hidden rounded-md border border-neutral-700 bg-neutral-900/90 text-xs shadow-lg" role="group" aria-label="Basemap">
         {(['map', 'imagery'] as const).map((b) => (
-          <button key={b} onClick={() => setBasemap(b)} aria-pressed={basemap === b}
+          <button type="button" key={b} onClick={() => setBasemap(b)} aria-pressed={basemap === b}
             className={`px-3 py-1.5 ${basemap === b ? 'bg-neutral-200 text-black' : 'text-neutral-300 hover:bg-neutral-800'}`}>
             {b === 'map' ? 'Map' : <>Imagery<span className="hidden sm:inline"> (US high-res)</span></>}
           </button>

@@ -134,7 +134,7 @@ export function AiPanel({ project }: { project: Investigation }) {
       </Section>
 
       <Section title="Chat with a model" aside={
-        <button onClick={() => setShowSettings((s) => !s)} className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-neutral-100">
+        <button type="button" onClick={() => setShowSettings((s) => !s)} className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-neutral-100">
           <Settings2 size={12} /> {provider.label} · {model}
         </button>
       }>
@@ -156,7 +156,7 @@ export function AiPanel({ project }: { project: Investigation }) {
                 {getKey(providerId) ? (
                   <div className="flex items-center justify-between rounded bg-emerald-950/40 px-2 py-1.5 text-[11px] text-emerald-200">
                     <span className="flex items-center gap-1.5"><KeyRound size={12} /> Key set {isPersisted(providerId) ? '(saved on this device)' : '(this tab only)'}</span>
-                    <button onClick={() => { clearKey(providerId); force((n) => n + 1) }} className="text-emerald-300 hover:text-white">Remove</button>
+                    <button type="button" onClick={() => { clearKey(providerId); force((n) => n + 1) }} className="text-emerald-300 hover:text-white">Remove</button>
                   </div>
                 ) : (
                   <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); setKey(providerId, keyDraft, persist); setKeyDraft(''); force((n) => n + 1) }}>
@@ -195,7 +195,7 @@ export function AiPanel({ project }: { project: Investigation }) {
         {messages.length === 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {STARTER_PROMPTS.map((p) => (
-              <button key={p} disabled={!hasKey || busy} onClick={() => void send(p)}
+              <button type="button" key={p} disabled={!hasKey || busy} onClick={() => void send(p)}
                 className="rounded-full border border-line px-2.5 py-1 text-[11px] text-neutral-300 hover:border-accent hover:text-white disabled:opacity-40">{p}</button>
             ))}
           </div>
@@ -249,7 +249,7 @@ export function AiPanel({ project }: { project: Investigation }) {
           )}
         </form>
         {messages.length > 0 && (
-          <button onClick={() => { setMessages([]); setDrafts([]) }} className="mt-2 flex items-center gap-1 text-[11px] text-neutral-500 hover:text-neutral-200"><Trash size={11} /> Clear conversation</button>
+          <button type="button" onClick={() => { setMessages([]); setDrafts([]) }} className="mt-2 flex items-center gap-1 text-[11px] text-neutral-500 hover:text-neutral-200"><Trash size={11} /> Clear conversation</button>
         )}
         <p className="mt-2 text-[10px] text-neutral-500">Conversations stay in this tab's memory and aren't saved. AI output can be wrong; check it against the imagery.</p>
       </Section>

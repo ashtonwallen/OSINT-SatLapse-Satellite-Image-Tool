@@ -63,7 +63,7 @@ export function AreaList({ areas, onOpen, onDraw }: { areas: Area[]; onOpen(a: A
         <ul className="space-y-1">
           {areas.map((a) => (
             <li key={a.id}>
-              <button onClick={() => onOpen(a)} className="flex w-full items-center gap-3 rounded-lg border border-transparent p-2 text-left transition-colors hover:border-line hover:bg-panel-2">
+              <button type="button" onClick={() => onOpen(a)} className="flex w-full items-center gap-3 rounded-lg border border-transparent p-2 text-left transition-colors hover:border-line hover:bg-panel-2">
                 <Thumb area={a} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">

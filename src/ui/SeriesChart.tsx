@@ -77,7 +77,7 @@ export function SeriesChart({ frames, index, events, onSeek }: Props) {
             <span className="tabular-nums text-neutral-100">{shown?.stats ? `${shown.stats[s.key].toFixed(1)}%` : '–'}</span>
           </span>
         ))}
-        <button onClick={() => setTable((v) => !v)} aria-pressed={table} title="Show as table"
+        <button type="button" onClick={() => setTable((v) => !v)} aria-pressed={table} title="Show as table"
           className={`ml-auto rounded p-1 ${table ? 'bg-neutral-200 text-black' : 'text-neutral-500 hover:text-neutral-200'}`}>
           <Table size={13} />
         </button>

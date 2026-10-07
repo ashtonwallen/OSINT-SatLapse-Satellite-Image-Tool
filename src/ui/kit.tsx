@@ -10,9 +10,12 @@ const VARIANTS: Record<Variant, string> = {
   danger: 'text-red-300 hover:bg-red-950/60 hover:text-red-200',
 }
 
-export function Button({ variant = 'secondary', className = '', children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
+// Buttons default to type="button": inside a <form> the HTML default is
+// "submit", which would submit the form on any click.
+export function Button({ variant = 'secondary', className = '', children, type = 'button', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return (
     <button
+      type={type}
       {...rest}
       className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${className}`}
     >
@@ -21,9 +24,10 @@ export function Button({ variant = 'secondary', className = '', children, ...res
   )
 }
 
-export function IconButton({ label, className = '', children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+export function IconButton({ label, className = '', children, type = 'button', ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return (
     <button
+      type={type}
       {...rest}
       aria-label={label}
       title={label}
@@ -47,6 +51,7 @@ export function Segmented<T extends string | number>({
     <div role="radiogroup" aria-label={label} className="flex rounded-md border border-line bg-panel-2 p-0.5">
       {options.map((o) => (
         <button
+          type="button"
           key={String(o.value)}
           role="radio"
           aria-checked={value === o.value}

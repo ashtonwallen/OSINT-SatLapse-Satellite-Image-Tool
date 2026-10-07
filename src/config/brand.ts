@@ -2,7 +2,10 @@
 // move should only require editing this file (plus index.html <title>).
 export const BRAND = {
   name: 'SatLapse',
-  tagline: 'Draw an area. Replay its Sentinel-2 history. See what changed.',
+  tagline: 'Draw an area. Replay its satellite history. See what changed.',
+  description: 'Free, open-source satellite timelapse and change detection that runs entirely in your browser: Sentinel-2, Landsat and US aerial imagery, flagged changes, reports and optional AI analysis. No account, no server, no API keys.',
+  /** External signup form for planned alerts (paid tier). Empty hides the button. */
+  alertsWaitlistUrl: '',
   siteUrl: 'https://satlapse.ashtonwilliamallen.com',
   repoUrl: 'https://github.com/ashtonwallen/OSINT-SatLapse-Satellite-Image-Tool',
   colors: {

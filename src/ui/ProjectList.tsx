@@ -49,7 +49,7 @@ export function ProjectList({ investigations, areas, onOpen, onCreate }: Props) 
           const running = own.some((a) => a.sync.status === 'running' || a.sync.status === 'queued')
           return (
             <li key={inv.id}>
-              <button onClick={() => onOpen(inv.id)} className="flex w-full items-center gap-3 rounded-lg border border-transparent p-2 text-left transition-colors hover:border-line hover:bg-panel-2">
+              <button type="button" onClick={() => onOpen(inv.id)} className="flex w-full items-center gap-3 rounded-lg border border-transparent p-2 text-left transition-colors hover:border-line hover:bg-panel-2">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-line bg-panel text-neutral-500"><FolderOpen size={18} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">

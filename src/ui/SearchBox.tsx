@@ -62,7 +62,7 @@ export function SearchBox({ onPick }: { onPick(p: Place): void }) {
           {results.length === 0 && <li className="px-3 py-2 text-neutral-400">No places found</li>}
           {results.map((r, i) => (
             <li key={i}>
-              <button className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-neutral-800" onClick={() => { onPick(r); setResults(null) }}>
+              <button type="button" className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-neutral-800" onClick={() => { onPick(r); setResults(null) }}>
                 <MapPin size={14} className="mt-0.5 shrink-0 text-neutral-500" />
                 <span>
                   <span className="block">{r.name}</span>

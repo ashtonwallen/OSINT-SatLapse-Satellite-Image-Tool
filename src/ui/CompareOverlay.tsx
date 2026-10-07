@@ -68,7 +68,7 @@ export function CompareOverlay({ map, state }: { map: MlMap; state: CompareState
       </div>
       {/* Divider */}
       <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white/90 shadow-[0_0_6px_rgba(0,0,0,.6)]" style={{ left: `${pos * 100}%` }} />
-      <button
+      <button type="button"
         aria-label="Drag to compare"
         className="pointer-events-auto absolute top-1/2 flex h-10 w-6 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-md bg-white text-black shadow-lg"
         style={{ left: `${pos * 100}%` }}

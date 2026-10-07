@@ -49,3 +49,18 @@ input[type="range"].range::-moz-range-thumb {
 .satlapse-popup .maplibregl-popup-content { background: #18191c; color: #e7e7ea; border: 1px solid #2a2d32; border-radius: 8px; padding: 10px 12px; }
 .satlapse-popup .maplibregl-popup-tip { border-top-color: #18191c !important; border-bottom-color: #18191c !important; }
 .satlapse-popup .maplibregl-popup-close-button { color: #a1a1aa; }
+
+/* Long-form pages (/security, /methodology). */
+.doc p, .doc li { line-height: 1.7; color: #c8c8cd; }
+.doc p + p { margin-top: .75rem; }
+.doc ul { list-style: disc; padding-left: 1.25rem; margin-top: .5rem; }
+.doc ol { list-style: decimal; padding-left: 1.25rem; margin-top: .5rem; }
+.doc a { color: var(--color-accent); text-underline-offset: 2px; }
+.doc a:hover { text-decoration: underline; }
+.doc code { font-family: var(--font-mono); font-size: .85em; background: #1c1d21; padding: .1em .35em; border-radius: 4px; color: #e4e4e7; }
+.doc pre { font-family: var(--font-mono); font-size: .85em; background: #121316; border: 1px solid var(--color-line); border-radius: 8px; padding: .9rem 1rem; overflow-x: auto; margin-top: .75rem; color: #e4e4e7; }
+.doc table { width: 100%; border-collapse: collapse; margin-top: .75rem; font-size: .9rem; }
+.doc th, .doc td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
+.doc th { color: #a1a1aa; font-weight: 500; }
+.doc h3 { font-weight: 600; color: #fff; margin-top: 1.25rem; }
+.callout { border: 1px solid #0c4a6e; background: rgb(12 74 110 / .25); border-radius: 10px; padding: 1rem 1.1rem; }
