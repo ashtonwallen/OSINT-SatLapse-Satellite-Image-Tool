@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { copernicusAttribution } from '../core/attribution'
 import { gridCornersLngLat } from '../core/geo'
 import { DATA_SOURCES } from '../core/sources'
-import { sensorOf, type Area, type ChangeStats, type ImageKind, type SceneRecord } from '../core/types'
+import { sensorOf, type Area, type ChangeEvent, type ChangeStats, type Confidence, type ImageKind, type SceneRecord } from '../core/types'
 import { deleteArea, markSeen, renameArea } from '../app/actions'
 import { engine } from '../app/engineClient'
 import { useAreaData, useImageCache, useProgress } from '../app/hooks'
@@ -14,6 +14,20 @@ import { Button, IconButton, Section, Segmented, fmtDate, relativeDays } from '.
 import type { ChangeView, HudState, View } from './MapHud'
 import type { FrameOverlay } from './MapView'
 import { Timeline } from './Timeline'
+
+const EVENT_DOT: Record<ChangeEvent['kind'], string> = {
+  veg_loss: '#ef4444', veg_gain: '#22c55e', water_gain: '#3b82f6', water_loss: '#f59e0b', built_gain: '#d946ef',
+}
+
+function ConfidencePill({ c }: { c: Confidence }) {
+  const cls = c === 'high' ? 'bg-emerald-500/15 text-emerald-300' : c === 'medium' ? 'bg-amber-500/15 text-amber-300' : 'bg-neutral-700/60 text-neutral-400'
+  return <span className={`shrink-0 rounded px-1.5 py-px text-[10px] font-medium ${cls}`} title={CONFIDENCE_HELP[c]}>{c}</span>
+}
+const CONFIDENCE_HELP: Record<Confidence, string> = {
+  high: 'Departs from the same season in 3+ earlier years, and the next image confirms it',
+  medium: 'Departs from the same season in 2 earlier years, or not yet confirmed by a later image',
+  low: 'Compared with the previous image only (not enough history), or not confirmed by the next image',
+}
 
 export interface FrameState { overlays: FrameOverlay[]; hud: HudState | null }
 
@@ -126,7 +140,8 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   useEffect(() => () => onFrameRef.current({ overlays: [], hud: null }), [])
 
   const baseline = s2Frames[0]?.stats
-  const frameEvents = events.filter((e) => e.sceneId === frame?.id)
+  const [eventFilter, setEventFilter] = useState<'confident' | 'all'>('confident')
+  const shownEvents = eventFilter === 'all' ? events : events.filter((e) => e.confidence === 'high' || e.confidence === 'medium')
 
   async function remove() {
     if (!confirm(`Delete "${area.name}" and all its processed imagery from this browser? This can't be undone.`)) return
@@ -229,7 +244,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
               <IconButton label="Next scene (→)" onClick={() => step(1)}><StepForward size={16} /></IconButton>
             </div>
           </div>
-          <Timeline frames={frames} index={Math.min(idx, frames.length - 1)} events={aerial ? [] : events} onChange={go} />
+          <Timeline frames={frames} index={Math.min(idx, frames.length - 1)} events={aerial ? [] : shownEvents} onChange={go} />
           <div className="mt-1 flex items-center justify-between gap-2">
             <span className="text-[11px] text-neutral-500">{frames.length} scenes</span>
             <div className="w-40">
@@ -323,17 +338,44 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
         </Section>
       )}
 
-      {/* Events on this frame */}
-      {frameEvents.length > 0 && (
-        <Section title="Flagged on this date">
-          <ul className="space-y-2">
-            {frameEvents.map((e) => (
-              <li key={e.id} className={`text-xs ${e.recurring ? 'opacity-70' : ''}`}>
-                <div className="font-medium text-amber-200">{e.title}{e.recurring && <span className="ml-1 font-normal text-neutral-400">(likely seasonal)</span>}</div>
-                <div className="text-neutral-400">{e.description}</div>
-              </li>
-            ))}
-          </ul>
+      {/* Flagged changes */}
+      {!aerial && events.length > 0 && (
+        <Section
+          title={<>Flagged changes <span className="font-normal normal-case tracking-normal text-neutral-500">({shownEvents.length})</span></>}
+          aside={
+            <div className="w-36">
+              <Segmented<'confident' | 'all'> label="Confidence filter" size="xs" value={eventFilter} onChange={setEventFilter}
+                options={[{ value: 'confident', label: 'Confident', title: 'High and medium confidence' }, { value: 'all', label: 'All' }]} />
+            </div>
+          }
+        >
+          {shownEvents.length === 0 ? (
+            <p className="text-xs text-neutral-500">
+              Nothing unusual for the time of year.{' '}
+              {events.length > 0 && <>{events.length} low-confidence change{events.length > 1 ? 's' : ''} hidden: switch to "All" to see them.</>}
+            </p>
+          ) : (
+            <ul className="-mx-1 max-h-72 space-y-1 overflow-y-auto scroll-thin">
+              {[...shownEvents].reverse().map((e) => {
+                const fi = frames.findIndex((f) => f.id === e.sceneId)
+                const current = frame?.id === e.sceneId
+                return (
+                  <li key={e.id}>
+                    <button onClick={() => fi >= 0 && go(fi)}
+                      className={`w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors ${current ? 'bg-amber-500/10 ring-1 ring-amber-500/40' : 'hover:bg-neutral-800'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: EVENT_DOT[e.kind] }} />
+                        <span className="font-medium text-neutral-100">{e.title}</span>
+                        <ConfidencePill c={e.confidence ?? 'low'} />
+                        <span className="ml-auto shrink-0 font-mono text-[10px] text-neutral-500">{e.date}</span>
+                      </div>
+                      {current && <p className="mt-1 leading-relaxed text-neutral-400">{e.description}</p>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </Section>
       )}
 

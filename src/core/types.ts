@@ -99,20 +99,43 @@ export interface SceneRecord {
 }
 
 export type EventKind = 'veg_loss' | 'veg_gain' | 'water_gain' | 'water_loss' | 'built_gain'
+export type Confidence = 'high' | 'medium' | 'low'
+export type LandCoverMetric = 'vegPct' | 'waterPct' | 'builtPct'
 
+/**
+ * A flagged change. Plain JSON, produced by the pure detector in
+ * src/core/detect.ts; this is also the payload alert channels consume
+ * (src/core/alerts.ts), so keep it serialisable and self-describing.
+ */
 export interface ChangeEvent {
   id: string
   areaId: string
   sceneId: string
   date: string
+  /** Earliest date the change could have started (previous usable scene). */
   previousDate: string
   kind: EventKind
+  metric: LandCoverMetric
+  /** 'seasonal': compared with the same time of year in prior years.
+   *  'previous': not enough history, compared with the previous scene only. */
+  method: 'seasonal' | 'previous'
+  confidence: Confidence
+  /** Land-cover share (%) observed on this date. */
+  observed: number
+  /** Typical share for this time of year (seasonal) or previous value. */
+  expected: number
+  /** Typical range for this time of year, when seasonal. */
+  expectedRange?: [number, number]
+  /** Prior years and scenes the comparison was based on. */
+  reference: { years: number[]; sceneIds: string[] }
+  /** Later scene that confirmed the change persisted, if any. */
+  confirmedBy?: string
   /** Affected area in km². */
   km2: number
   /** 0..1, used for marker sizing and sorting. */
   severity: number
-  /** Likely seasonal (a similar change happened at this time in another year). */
-  recurring: boolean
+  /** Data provenance of the flagged scene, for reports. */
+  sources: { sourceId: string; itemId: string }[]
   title: string
   description: string
 }

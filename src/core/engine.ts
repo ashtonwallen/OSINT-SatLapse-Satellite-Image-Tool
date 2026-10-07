@@ -7,7 +7,7 @@
 //   events
 import { findAcquisitions, type Acquisition } from './catalog'
 import { rasterizePolygon } from './geo'
-import { detectEvents } from './events'
+import { detectEvents } from './detect'
 import { syncNaip } from './naip'
 import { compareRasters, computeProducts, type RasterLike } from './products'
 import { historyStart, isUsable, MIN_COVERAGE_PCT, periodKey, pool, selectScenes } from './sampling'

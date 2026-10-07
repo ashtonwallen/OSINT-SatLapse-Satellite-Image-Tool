@@ -56,12 +56,11 @@ export function Timeline({ frames, index, events, onChange }: Props) {
           if (e.key === 'End') { e.preventDefault(); onChange(frames.length - 1) }
         }}
       >
-        {/* Event markers */}
-        {/* Likely-seasonal events are hidden here to keep the track readable. */}
-        {events.map((e) => frameIdx.has(e.sceneId) && !e.recurring && (
+        {/* Event markers (callers pass the confidence-filtered list) */}
+        {events.map((e) => frameIdx.has(e.sceneId) && (
           <span
             key={e.id}
-            title={`${e.date}: ${e.title}`}
+            title={`${e.date}: ${e.title} (${e.confidence ?? 'low'} confidence)`}
             className="absolute top-0.5 h-2 w-2 -translate-x-1/2 rounded-full ring-1 ring-black"
             style={{ left: `${pos(e.date)}%`, background: EVENT_COLORS[e.kind]}}
           />
