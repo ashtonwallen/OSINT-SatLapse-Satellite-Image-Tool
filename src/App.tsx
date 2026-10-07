@@ -4,7 +4,9 @@ import { bboxOf, type LngLat, type PolygonGeometry } from './core/geo'
 import type { Area, AreaSettings } from './core/types'
 import { BRAND } from './config/brand'
 import { APP_CONFIG } from './config/app'
-import { createAndBackfill, ensureInvestigation, newInvestigation, trackAllAreas } from './app/actions'
+import { createAndBackfill, createFromShare, ensureInvestigation, newInvestigation, trackAllAreas } from './app/actions'
+import { readShareHash, type SharedProject } from './core/share'
+import { SharedImport } from './ui/SharedImport'
 import { useAnnotations, useAreas, useInvestigations } from './app/hooks'
 import { AreaDetail, type FrameState } from './ui/AreaDetail'
 import { AreaList } from './ui/AreaList'
@@ -34,6 +36,17 @@ export function App() {
   const pointCb = useRef<((p: LngLat) => void) | null>(null)
   // On phones the panel is a bottom sheet that can be collapsed to free the map.
   const [collapsed, setCollapsed] = useState(false)
+  // A shared link (#p=…) waits for the user's confirmation before anything is created.
+  const [shared, setShared] = useState<SharedProject | null>(() => readShareHash(location.hash))
+  const clearHash = () => history.replaceState(null, '', location.pathname + location.search)
+  useEffect(() => {
+    if (shared) map.current?.fitBounds(bboxOf(shared.areas.flatMap((a) => a.geometry.coordinates[0])) as [number, number, number, number], 13)
+  }, [shared])
+  useEffect(() => {
+    const onHash = () => { const s = readShareHash(location.hash); if (s) setShared(s) }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const inv = investigations?.find((i) => i.id === invId) ?? null
   const invAreas = useMemo(() => (areas ?? []).filter((a) => a.investigationId === invId), [areas, invId])
@@ -90,7 +103,12 @@ export function App() {
   }
 
   let panel: React.ReactNode = null
-  if (pending) {
+  if (shared && !pending) {
+    panel = (
+      <SharedImport shared={shared} onDismiss={() => { setShared(null); clearHash() }}
+        onCreate={async (settings) => { const p = await createFromShare(shared, settings); setShared(null); clearHash(); openInvestigation(p.id) }} />
+    )
+  } else if (pending) {
     panel = (
       <NewAreaForm geometry={pending} maxAreaKm2={APP_CONFIG.maxAreaKm2} onCreate={create}
         onRedraw={() => { setPending(null); startDraw('polygon') }} onCancel={() => setPending(null)} />
@@ -114,7 +132,7 @@ export function App() {
     )
   }
   // First run: no projects yet. Drawing an area creates one.
-  const firstRun = !!investigations && investigations.length === 0 && !pending
+  const firstRun = !!investigations && investigations.length === 0 && !pending && !shared
 
   const hud = area ? frame.hud : null
   return (
@@ -147,7 +165,7 @@ export function App() {
           onDrawCancel={() => { setDrawMode('none'); pointCb.current = null; setCollapsed(false) }}
           onPoint={(p) => { setDrawMode('none'); pointCb.current?.(p); pointCb.current = null }}
           overlays={area ? frame.overlays : []}
-          pending={pending}
+          pending={pending ?? (shared?.areas.length === 1 ? shared.areas[0].geometry : null)}
           annotations={annotations}
         />
         {hud && drawMode === 'none' && <MapHud hud={hud} />}

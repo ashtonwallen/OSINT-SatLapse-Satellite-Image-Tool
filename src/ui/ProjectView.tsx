@@ -1,4 +1,4 @@
-import { ChevronLeft, MapPin, Pencil, Trash } from 'lucide-react'
+import { ChevronDown, ChevronLeft, MapPin, Pencil, Share2, Trash } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LngLat } from '../core/geo'
 import type { Annotation, Area, ChangeEvent, Investigation } from '../core/types'
@@ -8,6 +8,7 @@ import { AiPanel } from './AiPanel'
 import { AreaList } from './AreaList'
 import { Button, IconButton, Segmented, fmtDate } from './kit'
 import { Markdown } from './Markdown'
+import { ShareExport } from './ShareExport'
 
 type Tab = 'areas' | 'timeline' | 'notes' | 'ai'
 
@@ -32,6 +33,7 @@ type Item = { kind: 'event'; date: string; e: ChangeEvent } | { kind: 'note'; da
 export function ProjectView({ investigation: inv, areas, annotations, onBack, onOpenArea, onDraw, onFlyTo, actions }: Props) {
   const [tab, setTab] = useState<Tab>('areas')
   const [renaming, setRenaming] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const events = useEventsFor(areas.map((a) => a.id))
   const [allConfidence, setAllConfidence] = useState(false)
   const areaName = (id?: string) => areas.find((a) => a.id === id)?.name ?? ''
@@ -64,6 +66,14 @@ export function ProjectView({ investigation: inv, areas, annotations, onBack, on
         </div>
       </div>
       {actions}
+      <div className="rounded-lg border border-line">
+        <button onClick={() => setSharing((s) => !s)} aria-expanded={sharing}
+          className="flex w-full items-center justify-between px-3 py-2 text-xs text-neutral-300 hover:text-white">
+          <span className="flex items-center gap-1.5"><Share2 size={13} /> Share & export</span>
+          <ChevronDown size={14} className={`transition-transform ${sharing ? 'rotate-180' : ''}`} />
+        </button>
+        {sharing && <div className="border-t border-line p-3"><ShareExport project={inv} areas={areas} /></div>}
+      </div>
 
       <Segmented<Tab> label="Project sections" value={tab} onChange={setTab} options={[
         { value: 'areas', label: `Areas (${areas.length})` },

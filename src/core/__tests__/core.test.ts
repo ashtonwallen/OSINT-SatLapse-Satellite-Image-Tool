@@ -89,3 +89,38 @@ describe('investigations', () => {
     expect(await st.listAnnotations(inv.id)).toEqual([])
   })
 })
+
+import { decodeProjectShare, encodeProjectShare, readShareHash } from '../share'
+import { exportProjectFile, importProjectFile } from '../project'
+
+describe('project sharing and files', () => {
+  it('round-trips multi-area share links and still reads v1 links', () => {
+    const p = { name: 'Two sites', areas: [{ name: 'A', geometry: squareAround([1, 2], 1) }, { name: 'B', geometry: squareAround([3, 4], 2) }] }
+    const back = decodeProjectShare(encodeProjectShare(p))
+    expect(back?.areas.map((a) => a.name)).toEqual(['A', 'B'])
+    const v1 = encodeShare({ name: 'Old', geometry: squareAround([5, 6], 1) })
+    expect(readShareHash(`#share=${v1}`)?.areas[0].name).toBe('Old')
+  })
+  it('exports and re-imports a whole project with areas, scenes and annotations', async () => {
+    const st = new MemoryStorage()
+    const inv = createInvestigation('Exported')
+    await st.putInvestigation({ ...inv, notes: '# Notes' })
+    const a = mkArea('Site', squareAround([0, 10], 2), undefined, inv.id)
+    await st.putArea(a)
+    await st.putScenes([{ id: `${a.id}|2024-01-01`, areaId: a.id, date: '2024-01-01', datetime: '', status: 'processed', sources: [], cloudPct: 0, coveragePct: 100 }])
+    await st.putImage(`${a.id}|2024-01-01`, 'tc', new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' }))
+    await st.putAnnotation({ id: 'n1', investigationId: inv.id, areaId: a.id, sceneId: `${a.id}|2024-01-01`, lngLat: [0, 10], date: '2024-01-01', text: 'pin', author: 'user', createdAt: '' })
+    const bytes = await exportProjectFile(st, inv.id)
+    const st2 = new MemoryStorage()
+    const p2 = await importProjectFile(st2, bytes)
+    expect(p2.name).toBe('Exported')
+    expect(p2.notes).toBe('# Notes')
+    const [a2] = await st2.listAreas()
+    expect(a2.investigationId).toBe(p2.id)
+    expect((await st2.listScenes(a2.id))).toHaveLength(1)
+    expect(await st2.getImage(`${a2.id}|2024-01-01`, 'tc')).toBeDefined()
+    const [n2] = await st2.listAnnotations(p2.id)
+    expect(n2.areaId).toBe(a2.id)
+    expect(n2.sceneId).toBe(`${a2.id}|2024-01-01`)
+  })
+})

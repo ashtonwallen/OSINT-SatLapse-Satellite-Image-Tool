@@ -3,9 +3,9 @@
 // Usage: npx jiti scripts/sync-node.ts <name> <minLng,minLat,maxLng,maxLat> <1y|3y|all> <all|month|quarter> <out.satlapse> [maxCloud]
 import { writeFileSync } from 'node:fs'
 import sharp from 'sharp'
-import { createArea } from '../src/core/area'
+import { createArea, createInvestigation } from '../src/core/area'
 import { syncArea } from '../src/core/engine'
-import { exportProject } from '../src/core/project'
+import { exportProjectFile } from '../src/core/project'
 import { MemoryStorage, type ImageEncoder } from '../src/core/storage'
 import type { HistoryDepth, Sampling } from '../src/core/types'
 
@@ -19,11 +19,13 @@ const encoder: ImageEncoder = {
 
 const [name, bboxArg, depth, sampling, out, maxCloud = '20'] = process.argv.slice(2)
 const [x0, y0, x1, y1] = bboxArg.split(',').map(Number)
+const project = createInvestigation(name)
 const area = createArea(name, { type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] }, {
   historyDepth: depth as HistoryDepth, sampling: sampling as Sampling, maxCloudPct: Number(maxCloud),
-})
+}, project.id)
 console.log(`${area.name}: ${area.areaKm2.toFixed(1)} km², grid ${area.grid.width}x${area.grid.height} @ ${area.grid.res} m, EPSG:${area.grid.epsg}`)
 const storage = new MemoryStorage()
+await storage.putInvestigation(project)
 await storage.putArea(area)
 
 let bytes = 0, requests = 0
@@ -49,7 +51,7 @@ for (const s of scenes.filter((x) => x.status === 'processed' && x.stats)) {
   console.log(`  ${s.date} cloud ${s.cloudPct.toFixed(1)}% veg ${st.vegPct.toFixed(1)} water ${st.waterPct.toFixed(1)} built ${st.builtPct.toFixed(1)}${st.vsPrev ? ` Δprev ${st.vsPrev.changedPct.toFixed(1)}%` : ''}`)
 }
 for (const e of await storage.listEvents(area.id)) console.log(`  EVENT ${e.date} ${e.title}${e.recurring ? ' (recurring)' : ''}: ${e.description}`)
-const zip = await exportProject(storage, area.id)
+const zip = await exportProjectFile(storage, project.id)
 writeFileSync(out, zip)
 console.log(`wrote ${out}: ${(zip.length / 1e6).toFixed(1)} MB`)
 for (const s of scenes.filter((x) => x.sensor === 'naip')) {

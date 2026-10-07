@@ -1,6 +1,8 @@
 import { createArea, createInvestigation, newId } from '../core/area'
 import type { LngLat, PolygonGeometry } from '../core/geo'
 import type { Annotation, Area, AreaSettings, Investigation } from '../core/types'
+import { exportProjectFile, importProjectFile } from '../core/project'
+import type { SharedProject } from '../core/share'
 import { storage } from '../storage/idb'
 import { engine } from './engineClient'
 
@@ -103,4 +105,23 @@ export async function editAnnotation(a: Annotation, text: string): Promise<void>
 export async function removeAnnotation(id: string): Promise<void> {
   await storage.deleteAnnotation(id)
   changed()
+}
+
+// --- Portability ------------------------------------------------------------
+
+export async function exportProjectBytes(projectId: string): Promise<Uint8Array> {
+  return exportProjectFile(storage, projectId)
+}
+
+export async function importProjectBytes(bytes: Uint8Array): Promise<Investigation> {
+  const p = await importProjectFile(storage, bytes)
+  changed()
+  return p
+}
+
+/** Create a project from a share link and start each area's backfill. */
+export async function createFromShare(shared: SharedProject, settings: AreaSettings): Promise<Investigation> {
+  const inv = await newInvestigation(shared.name)
+  for (const a of shared.areas) await createAndBackfill(inv.id, a.name, a.geometry, settings)
+  return inv
 }

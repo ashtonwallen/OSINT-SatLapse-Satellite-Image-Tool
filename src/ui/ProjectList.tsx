@@ -1,5 +1,7 @@
-import { FolderOpen, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { FolderOpen, Plus, Upload } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { importProjectBytes } from '../app/actions'
+import { PROJECT_EXT } from '../core/project'
 import type { Area, Investigation } from '../core/types'
 import { Button } from './kit'
 
@@ -13,12 +15,25 @@ interface Props {
 export function ProjectList({ investigations, areas, onOpen, onCreate }: Props) {
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Projects</h2>
-        <Button variant="ghost" className="!px-2 text-xs" onClick={() => setNaming(true)}><Plus size={14} /> New</Button>
+        <div className="flex">
+          <Button variant="ghost" className="!px-2 text-xs" onClick={() => fileRef.current?.click()} title={`Import a ${PROJECT_EXT} project file`}><Upload size={14} /> Import</Button>
+          <Button variant="ghost" className="!px-2 text-xs" onClick={() => setNaming(true)}><Plus size={14} /> New</Button>
+        </div>
+        <input ref={fileRef} type="file" accept={`${PROJECT_EXT},.zip`} className="hidden" onChange={async (e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (!f) return
+          setImportError(null)
+          try { onOpen((await importProjectBytes(new Uint8Array(await f.arrayBuffer()))).id) } catch (err) { setImportError(err instanceof Error ? err.message : String(err)) }
+        }} />
       </div>
+      {importError && <p className="text-xs text-red-400">{importError}</p>}
       {naming && (
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); onCreate(name); setName(''); setNaming(false) }}>
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Reservoir drawdown 2021–2023"
