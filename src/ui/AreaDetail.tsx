@@ -3,8 +3,10 @@ import {
   StepBack, StepForward, Trash, TriangleAlert, Building, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { copernicusAttribution } from '../core/attribution'
 import { gridCornersLngLat } from '../core/geo'
-import type { Area, ChangeStats, ImageKind, SceneRecord } from '../core/types'
+import { DATA_SOURCES } from '../core/sources'
+import { sensorOf, type Area, type ChangeStats, type ImageKind, type SceneRecord } from '../core/types'
 import { deleteArea, markSeen, renameArea } from '../app/actions'
 import { engine } from '../app/engineClient'
 import { useAreaData, useImageCache, useProgress } from '../app/hooks'
@@ -22,10 +24,13 @@ interface Props {
   onFit(): void
 }
 
-const PHASES = ['search', 'screen', 'process', 'finalize'] as const
-const PHASE_LABEL = { search: 'Search', screen: 'Cloud check', process: 'Download', finalize: 'Analyse' }
+const PHASES = ['search', 'screen', 'process', 'aerial', 'finalize'] as const
+const PHASE_LABEL = { search: 'Search', screen: 'Cloud check', process: 'Satellite', aerial: 'Aerial', finalize: 'Analyse' }
+
+type Collection = 'satellite' | 'aerial'
 
 const sensorLabel = (s: SceneRecord) => {
+  if (sensorOf(s) === 'naip') return `NAIP aerial · ${s.gsd ?? 1} m`
   const id = s.sources[0]?.itemId ?? ''
   const sat = /^S2([ABC])/.exec(id)?.[1] ?? /S2([ABC])_MSI/.exec(id)?.[1]
   return `Sentinel-2${sat ?? ''} · 10 m`
@@ -35,12 +40,16 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   const { scenes, events } = useAreaData(area.id)
   const progress = useProgress(area.id)
   const cache = useImageCache(area.id)
-  const frames = useMemo(() => scenes.filter((s) => s.status === 'processed'), [scenes])
-  const counts = useMemo(() => ({
-    rejected: scenes.filter((s) => s.status === 'rejected').length,
-    skipped: scenes.filter((s) => s.status === 'skipped').length,
-  }), [scenes])
-  const corners = useMemo(() => gridCornersLngLat(area.grid), [area.grid])
+  const s2Frames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) === 'sentinel-2'), [scenes])
+  const aerialFrames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) === 'naip'), [scenes])
+  const [collection, setCollection] = useState<Collection>('satellite')
+  const aerial = collection === 'aerial' && aerialFrames.length > 0
+  const frames = aerial ? aerialFrames : s2Frames
+  const counts = useMemo(() => {
+    const s2 = scenes.filter((s) => sensorOf(s) === 'sentinel-2')
+    return { rejected: s2.filter((s) => s.status === 'rejected').length, skipped: s2.filter((s) => s.status === 'skipped').length }
+  }, [scenes])
+  const areaCorners = useMemo(() => gridCornersLngLat(area.grid), [area.grid])
 
   const [idx, setIdx] = useState(0)
   const [follow, setFollow] = useState(true) // stick to the newest frame while backfilling
@@ -57,6 +66,12 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   useEffect(() => { if (follow && frames.length) setIdx(frames.length - 1) }, [frames.length, follow])
 
   const go = (i: number) => { setIdx(i); setFollow(false); setPlaying(false) }
+  const switchCollection = (c: Collection) => {
+    setCollection(c)
+    setPlaying(false)
+    setFollow(true)
+    if (c === 'aerial') { setChange('none'); setView((v) => (v === 'ndvi' ? v : 'tc')) }
+  }
   const step = (d: number) => frames.length && go((idx + d + frames.length) % frames.length)
 
   useEffect(() => {
@@ -81,6 +96,8 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   }, [])
 
   const frame = frames[Math.min(idx, frames.length - 1)]
+  // Aerial frames have their own, much finer grid.
+  const corners = useMemo(() => (frame?.grid ? gridCornersLngLat(frame.grid) : areaCorners), [frame?.grid, areaCorners])
   const st = frame?.stats
   const cmp: ChangeStats | undefined = change === 'chgBase' ? st?.vsBaseline : change === 'chgPrev' ? st?.vsPrev : undefined
 
@@ -94,8 +111,10 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
     void Promise.all(kinds.map((k) => cache.get(frame.id, k))).then((urls) => {
       if (cancelled) return
       onFrameRef.current({
-        overlays: urls.flatMap((url, i) => (url ? [{ url, corners, opacity: i === 0 ? opacity : Math.max(0.6, opacity) }] : [])),
-        hud: { date: frame.date, view, change, comparedDate: cmp?.comparedDate, sensor: sensorLabel(frame), index: idx, count: frames.length },
+        overlays: urls.flatMap((url, i) => (url ? [{ url, corners, opacity: i === 0 ? opacity : Math.max(0.6, opacity), smooth: aerial }] : [])),
+        hud: { date: frame.date, view, change, comparedDate: cmp?.comparedDate, sensor: sensorLabel(frame),
+          attribution: aerial ? DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution : copernicusAttribution(Number(frame.date.slice(0, 4))),
+          index: idx, count: frames.length },
       })
     })
     for (let k = 1; k <= 3; k++) {
@@ -103,10 +122,10 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
       if (next) kinds.forEach((kind) => void cache.get(next.id, kind))
     }
     return () => { cancelled = true }
-  }, [frame, view, change, opacity, corners, cache, frames, idx, cmp?.comparedDate])
+  }, [frame, view, change, opacity, corners, cache, frames, idx, cmp?.comparedDate, aerial])
   useEffect(() => () => onFrameRef.current({ overlays: [], hud: null }), [])
 
-  const baseline = frames[0]?.stats
+  const baseline = s2Frames[0]?.stats
   const frameEvents = events.filter((e) => e.sceneId === frame?.id)
 
   async function remove() {
@@ -152,7 +171,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
             </span>
             <Button variant="ghost" className="!px-2 !py-0.5 text-xs" onClick={() => engine.cancel(area.id)}><X size={12} /> Stop</Button>
           </div>
-          <ol className="mb-2 grid grid-cols-4 gap-1">
+          <ol className="mb-2 grid grid-cols-5 gap-1">
             {PHASES.map((p) => {
               const cur = progress ? PHASES.indexOf(progress.phase as (typeof PHASES)[number]) : -1
               const i = PHASES.indexOf(p)
@@ -184,10 +203,18 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
       {/* Player */}
       {frame ? (
         <Section>
+          {aerialFrames.length > 0 && (
+            <div className="mb-3">
+              <Segmented<Collection> label="Imagery" value={collection} onChange={switchCollection} options={[
+                { value: 'satellite', label: <>Satellite · 10 m <span className="opacity-60">({s2Frames.length})</span></>, title: 'Sentinel-2: every few days, 10 m' },
+                { value: 'aerial', label: <>Aerial · {Math.min(...aerialFrames.map((f) => f.gsd ?? 1))} m <span className="opacity-60">({aerialFrames.length})</span></>, title: 'NAIP aerial photos: every 2–3 years, US only' },
+              ]} />
+            </div>
+          )}
           <div className="mb-1 flex items-end justify-between gap-2">
             <div>
               <div className="font-mono text-xl font-semibold leading-none text-white">{fmtDate(frame.date, 'short')}</div>
-              <div className="mt-1 text-[11px] text-neutral-400">{relativeDays(frame.date)} · {frame.cloudPct.toFixed(0)}% cloud over area</div>
+              <div className="mt-1 text-[11px] text-neutral-400">{relativeDays(frame.date)} · {aerial ? sensorLabel(frame) : `${frame.cloudPct.toFixed(0)}% cloud over area`}</div>
             </div>
             <div className="flex items-center">
               <IconButton label="Previous scene (←)" onClick={() => step(-1)}><StepBack size={16} /></IconButton>
@@ -202,7 +229,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
               <IconButton label="Next scene (→)" onClick={() => step(1)}><StepForward size={16} /></IconButton>
             </div>
           </div>
-          <Timeline frames={frames} index={Math.min(idx, frames.length - 1)} events={events} onChange={go} />
+          <Timeline frames={frames} index={Math.min(idx, frames.length - 1)} events={aerial ? [] : events} onChange={go} />
           <div className="mt-1 flex items-center justify-between gap-2">
             <span className="text-[11px] text-neutral-500">{frames.length} scenes</span>
             <div className="w-40">
@@ -223,13 +250,13 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
       {/* Layers */}
       {frame && (
         <Section title="Layer">
-          <div className="grid grid-cols-4 gap-1">
+          <div className={`grid gap-1 ${aerial ? 'grid-cols-2' : 'grid-cols-4'}`}>
             {([
               { v: 'tc', label: 'Photo', icon: Image },
               { v: 'ndvi', label: 'Vegetation', icon: Leaf },
               { v: 'ndwi', label: 'Water', icon: Droplets },
               { v: 'ndbi', label: 'Built & bare', icon: Building },
-            ] as const).map(({ v, label, icon: Icon }) => (
+            ] as const).filter(({ v }) => !aerial || v === 'tc' || v === 'ndvi').map(({ v, label, icon: Icon }) => (
               <button key={v} onClick={() => setView(v)} aria-pressed={view === v}
                 className={`flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] transition-colors ${
                   view === v ? 'border-accent bg-accent/10 text-white' : 'border-line text-neutral-400 hover:border-neutral-600 hover:text-neutral-200'}`}>
@@ -237,6 +264,12 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
               </button>
             ))}
           </div>
+          {aerial ? (
+            <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+              NAIP aerial photos (USDA): sharp enough for buildings, vehicles and trees, but flown only every 2–3 years and US only.
+              Use them to see <i>what</i> changed; use satellite frames to narrow down <i>when</i>. They aren't used for automatic change stats.
+            </p>
+          ) : (
           <div className="mt-3 space-y-1">
             <div className="text-[11px] text-neutral-400">Highlight change</div>
             <Segmented<ChangeView> label="Change overlay" value={change} onChange={setChange} options={[
@@ -245,6 +278,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
               { value: 'chgBase', label: 'Since first', title: `Compare with the first scene (${frames[0] ? fmtDate(frames[0].date, 'short') : ''})` },
             ]} />
           </div>
+          )}
           <label className="mt-3 flex items-center gap-2 text-[11px] text-neutral-400">
             Opacity
             <input type="range" className="range flex-1" min={0} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} aria-label="Frame opacity" />

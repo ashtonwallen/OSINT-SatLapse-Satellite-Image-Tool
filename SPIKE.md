@@ -122,3 +122,22 @@ Screening with SCL alone is cheap: 83 scenes cost about 1 MB and 11 s. Full proc
 **Correction to §3 (reflectance offsets).** Legacy Earth Search items (`sentinel-2-l2a`) from processing baseline 04.00 onward carry `earthsearch:boa_offset_applied: true`. Their pixels already have the +1000 DN offset removed, yet `raster:bands` still says `offset: -0.1`. Honouring both subtracts the offset twice, which pushed water reflectance negative and made Lake Oroville's water "disappear" in 2022. Fixed in `src/core/stac.ts`. After the fix, all three sources agree on the same acquisition (green 0.0550 / NIR 0.0367 on 2023-07-03), and a unit test covers it.
 
 **Landsat (quick probe; the full spike follows in Phase 3d).** Earth Search's `landsat-c2-l2` assets point at `s3://usgs-landsat` (requester-pays), so a browser can't read them. Planetary Computer's `landsat-c2-l2` works: STAC with CORS, SAS-signed `landsateuwest.blob.core.windows.net` COGs with Range and CORS, and history back to Landsat 4 (1982).
+
+## Addendum (Phase 3.1): NAIP high-resolution aerial imagery
+
+**Access:** Planetary Computer STAC `naip` collection with SAS-signed blobs on `naipeuwest.blob.core.windows.net`. STAC and blob storage both send CORS headers and accept Range requests; no key needed. US only. The archive goes back to roughly 2010, flown every 2–3 years per state, at 1 m (to ~2015), then 0.6 m, and 0.3 m in some recent states.
+
+**Approach:**
+- NAIP frames get their own grid in the area's UTM zone, at native resolution, capped at 4096 px per side (a 100 km² area renders at ~2.5 m).
+- The reader picks the coarsest COG overview that's still at least as fine as that grid. Without this, downsampled frames would download up to ~70× more data than needed.
+- NAD83/UTM and WGS84/UTM are treated as the same CRS (~1–2 m apart in CONUS).
+- Quads in a different UTM zone from the area are skipped.
+
+**Measured:**
+- **Small area (0.2 km², ~2 km context window):** 6 years (2012–2022) at 1 m and 0.6 m. Each frame is 2000–3335 px across and 0.3–0.9 MB stored as WebP.
+- **30 km² area (in the browser):** 6 years, rendered at 1.4 m because of the size cap.
+
+**Limits:**
+- Uncalibrated 8-bit values, so NAIP gets no land-cover stats and isn't part of change detection.
+- Low frequency (every 2–3 years).
+- Contiguous US only.

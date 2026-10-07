@@ -125,17 +125,25 @@ function normalizePlanetaryComputer(item: StacItem): SceneRef {
   }
 }
 
-// Planetary Computer blobs need a short-lived, anonymous SAS token.
-let pcToken: { token: string; expires: number } | null = null
-async function signPlanetaryComputer(href: string, signal?: AbortSignal): Promise<string> {
-  if (!pcToken || pcToken.expires - Date.now() < 5 * 60_000) {
-    const res = await fetch('https://planetarycomputer.microsoft.com/api/sas/v1/token/sentinel-2-l2a', { signal })
-    if (!res.ok) throw new Error(`PC token request failed: ${res.status}`)
-    const j = (await res.json()) as { token: string; 'msft:expiry': string }
-    pcToken = { token: j.token, expires: Date.parse(j['msft:expiry']) }
+// Planetary Computer blobs need a short-lived, anonymous SAS token, issued
+// per collection and cached until shortly before expiry.
+const pcTokens = new Map<string, Promise<{ token: string; expires: number }>>()
+export async function pcSign(href: string, collection: string, signal?: AbortSignal): Promise<string> {
+  let p = pcTokens.get(collection)
+  const cur = p && (await p.catch(() => null))
+  if (!cur || cur.expires - Date.now() < 5 * 60_000) {
+    p = fetch(`https://planetarycomputer.microsoft.com/api/sas/v1/token/${collection}`, { signal }).then(async (res) => {
+      if (!res.ok) throw new Error(`Planetary Computer token request failed: HTTP ${res.status}`)
+      const j = (await res.json()) as { token: string; 'msft:expiry': string }
+      return { token: j.token, expires: Date.parse(j['msft:expiry']) }
+    })
+    pcTokens.set(collection, p)
+    p.catch(() => pcTokens.delete(collection))
   }
-  return `${href}${href.includes('?') ? '&' : '?'}${pcToken.token}`
+  const { token } = await p!
+  return `${href}${href.includes('?') ? '&' : '?'}${token}`
 }
+const signPlanetaryComputer = (href: string, signal?: AbortSignal) => pcSign(href, 'sentinel-2-l2a', signal)
 
 export const SOURCES: Record<SourceId, StacSource> = {
   'earth-search-c1': {

@@ -44,7 +44,7 @@ const res = await syncArea(area.id, storage, encoder, {
 })
 console.log(`\n${JSON.stringify(res)} in ${((Date.now() - t0) / 1000).toFixed(1)} s, ${(bytes / 1e6).toFixed(0)} MB, ${requests} requests`)
 const scenes = await storage.listScenes(area.id)
-for (const s of scenes.filter((x) => x.status === 'processed')) {
+for (const s of scenes.filter((x) => x.status === 'processed' && x.stats)) {
   const st = s.stats!
   console.log(`  ${s.date} cloud ${s.cloudPct.toFixed(1)}% veg ${st.vegPct.toFixed(1)} water ${st.waterPct.toFixed(1)} built ${st.builtPct.toFixed(1)}${st.vsPrev ? ` Δprev ${st.vsPrev.changedPct.toFixed(1)}%` : ''}`)
 }
@@ -52,3 +52,8 @@ for (const e of await storage.listEvents(area.id)) console.log(`  EVENT ${e.date
 const zip = await exportProject(storage, area.id)
 writeFileSync(out, zip)
 console.log(`wrote ${out}: ${(zip.length / 1e6).toFixed(1)} MB`)
+for (const s of scenes.filter((x) => x.sensor === 'naip')) {
+  const img = await storage.getImage(s.id, 'tc')
+  console.log(`  NAIP ${s.date} ${s.status} gsd ${s.gsd} m grid ${s.grid!.width}x${s.grid!.height} @ ${s.grid!.res} m, coverage ${s.coveragePct.toFixed(0)}%, ${img ? (img.size / 1e6).toFixed(2) + ' MB' : 'no image'}`)
+  if (img && process.env.DUMP_DIR) writeFileSync(`${process.env.DUMP_DIR}/naip-${s.date}.webp`, new Uint8Array(await img.arrayBuffer()))
+}

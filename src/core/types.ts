@@ -1,7 +1,6 @@
 // Versioned data model shared by the engine, storage and UI.
 // Bump SCHEMA_VERSION and add a migration in storage when shapes change.
 import type { Grid, PolygonGeometry } from './geo'
-import type { SourceId } from './stac'
 
 export const SCHEMA_VERSION = 1
 
@@ -73,6 +72,10 @@ export interface SceneStats {
 
 export type SceneStatus = 'processed' | 'rejected' | 'skipped'
 
+/** Imaging system that produced a scene. Missing means Sentinel-2 (schema v1). */
+export type Sensor = 'sentinel-2' | 'naip' | 'landsat'
+export const sensorOf = (s: { sensor?: Sensor }): Sensor => s.sensor ?? 'sentinel-2'
+
 export interface SceneRecord {
   /** `${areaId}|${date}` */
   id: string
@@ -82,10 +85,17 @@ export interface SceneRecord {
   status: SceneStatus
   /** Why a scene was rejected or skipped. */
   reason?: string
-  sources: { sourceId: SourceId; itemId: string; tile: string | null }[]
+  /** sourceId matches an entry in DATA_SOURCES (src/core/sources.ts). */
+  sources: { sourceId: string; itemId: string; tile: string | null }[]
   cloudPct: number
   coveragePct: number
   stats?: SceneStats
+  /** Absent for Sentinel-2 (the area's main grid). */
+  sensor?: Sensor
+  /** Own pixel grid for sources rendered at a different resolution (e.g. NAIP). */
+  grid?: Grid
+  /** Native ground sample distance in metres, when it differs from the grid. */
+  gsd?: number
 }
 
 export type EventKind = 'veg_loss' | 'veg_gain' | 'water_gain' | 'water_loss' | 'built_gain'

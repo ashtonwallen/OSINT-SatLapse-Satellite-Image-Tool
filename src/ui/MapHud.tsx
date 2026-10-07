@@ -1,5 +1,4 @@
 // On-map heads-up display for the active frame: date chip, legend, attribution.
-import { copernicusAttribution } from '../core/attribution'
 import { CHANGE_COLORS } from '../core/products'
 import { NDBI_RAMP, NDVI_RAMP, NDWI_RAMP, type Stop } from '../core/scene'
 import { fmtDate, relativeDays } from './kit'
@@ -13,6 +12,8 @@ export interface HudState {
   change: ChangeView
   comparedDate?: string
   sensor: string
+  /** Credit line required by the frame's data source. */
+  attribution: string
   index: number
   count: number
 }
@@ -73,7 +74,7 @@ export function MapHud({ hud }: { hud: HudState }) {
             </ul>
           </div>
         )}
-        <div className="text-neutral-500">{copernicusAttribution(Number(hud.date.slice(0, 4)))}</div>
+        <div className="text-neutral-500">{hud.attribution}</div>
       </div>
     </>
   )

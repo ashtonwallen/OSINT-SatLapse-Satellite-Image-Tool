@@ -11,6 +11,8 @@ export interface FrameOverlay {
   url: string
   corners: [LngLat, LngLat, LngLat, LngLat]
   opacity: number
+  /** Linear resampling (aerial photos); default is nearest, showing true pixels. */
+  smooth?: boolean
 }
 
 export interface MapViewHandle {
@@ -139,9 +141,10 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
       if (src) {
         src.updateImage({ url: o.url, coordinates: o.corners })
         map.setPaintProperty(id, 'raster-opacity', o.opacity)
+        map.setPaintProperty(id, 'raster-resampling', o.smooth ? 'linear' : 'nearest')
       } else {
         map.addSource(id, { type: 'image', url: o.url, coordinates: o.corners })
-        map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': o.opacity, 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, 'areas-fill')
+        map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': o.opacity, 'raster-fade-duration': 0, 'raster-resampling': o.smooth ? 'linear' : 'nearest' } }, 'areas-fill')
       }
     })
     for (let i = 0; i < 8; i++) {

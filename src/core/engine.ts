@@ -8,15 +8,16 @@
 import { findAcquisitions, type Acquisition } from './catalog'
 import { rasterizePolygon } from './geo'
 import { detectEvents } from './events'
+import { syncNaip } from './naip'
 import { compareRasters, computeProducts, type RasterLike } from './products'
 import { historyStart, isUsable, MIN_COVERAGE_PCT, periodKey, pool, selectScenes } from './sampling'
 import { coverageStats, loadAcquisitionBands, readMosaicBand } from './scene'
 import type { SourceId } from './stac'
 import { rasterKey, type ImageEncoder, type Storage } from './storage'
-import { sceneId, type Area, type AreaSync, type IndexRaster, type SceneRecord } from './types'
+import { sceneId, sensorOf, type Area, type AreaSync, type IndexRaster, type SceneRecord } from './types'
 
 export type SyncMode = 'backfill' | 'track'
-export type SyncPhase = 'search' | 'screen' | 'process' | 'finalize' | 'done'
+export type SyncPhase = 'search' | 'screen' | 'process' | 'aerial' | 'finalize' | 'done'
 
 export interface SyncProgress {
   phase: SyncPhase
@@ -77,7 +78,8 @@ export async function syncArea(areaId: string, storage: Storage, encoder: ImageE
     await storage.putArea(area)
   }
 
-  const existing = new Map((await storage.listScenes(areaId)).map((s) => [s.date, s]))
+  // Only Sentinel-2 records take part in the catalogue/sampling/change chain.
+  const existing = new Map((await storage.listScenes(areaId)).filter((s) => sensorOf(s) === 'sentinel-2').map((s) => [s.date, s]))
   const processedDates = [...existing.values()].filter((s) => s.status === 'processed').map((s) => s.date).sort()
   const latestProcessed = processedDates.at(-1)
 
@@ -242,7 +244,20 @@ export async function syncArea(areaId: string, storage: Storage, encoder: ImageE
     progress({ phase: 'process', done: i + 1, total, message: `Processed ${i + 1} of ${total} scenes (latest: ${c.date})` })
   }
 
-  // 5. Events over the full history.
+  // 5. High-resolution aerial imagery (US only). Independent of Sentinel-2,
+  //    so a failure here is reported as a warning rather than failing the sync.
+  try {
+    await syncNaip(area, storage, encoder, {
+      signal,
+      onScene: (r) => opts.onScene?.(r),
+      onProgress: (done, total, message) => progress({ phase: 'aerial', done, total, message }),
+    })
+  } catch (e) {
+    if (signal?.aborted) throw e
+    result.warnings.push(`Aerial imagery: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  // 6. Events over the full history.
   progress({ phase: 'finalize', done: 0, total: 1, message: 'Detecting change events…' })
   const all = await storage.listScenes(areaId)
   await storage.replaceEvents(areaId, detectEvents(areaId, area.areaKm2, all))
