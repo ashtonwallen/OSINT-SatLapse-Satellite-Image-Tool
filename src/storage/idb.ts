@@ -80,7 +80,7 @@ function migrateV1toV2(tx: IDBTransaction) {
       cur.continue()
     } else if (moved > 0) {
       const now = new Date().toISOString()
-      const inv: Investigation = { id: DEFAULT_INVESTIGATION_ID, schemaVersion: SCHEMA_VERSION, name: 'My investigation', notes: '', createdAt: now, updatedAt: now }
+      const inv: Investigation = { id: DEFAULT_INVESTIGATION_ID, schemaVersion: SCHEMA_VERSION, name: 'My project', notes: '', createdAt: now, updatedAt: now }
       tx.objectStore('investigations').put(inv)
     }
   }

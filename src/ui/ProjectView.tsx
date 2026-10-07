@@ -28,7 +28,7 @@ const KIND_COLOR: Record<ChangeEvent['kind'], string> = {
 
 type Item = { kind: 'event'; date: string; e: ChangeEvent } | { kind: 'note'; date: string; a: Annotation }
 
-export function InvestigationView({ investigation: inv, areas, annotations, onBack, onOpenArea, onDraw, onFlyTo, actions }: Props) {
+export function ProjectView({ investigation: inv, areas, annotations, onBack, onOpenArea, onDraw, onFlyTo, actions }: Props) {
   const [tab, setTab] = useState<Tab>('areas')
   const [renaming, setRenaming] = useState(false)
   const events = useEventsFor(areas.map((a) => a.id))
@@ -46,7 +46,7 @@ export function InvestigationView({ investigation: inv, areas, annotations, onBa
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-1">
-        <IconButton label="All investigations" onClick={onBack}><ChevronLeft size={18} /></IconButton>
+        <IconButton label="All projects" onClick={onBack}><ChevronLeft size={18} /></IconButton>
         <div className="min-w-0 flex-1 pt-0.5">
           {renaming ? (
             <input autoFocus defaultValue={inv.name}
@@ -54,17 +54,17 @@ export function InvestigationView({ investigation: inv, areas, annotations, onBa
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') setRenaming(false) }}
               className="w-full rounded border border-accent bg-panel px-2 py-0.5 text-lg font-semibold outline-none" />
           ) : (
-            <button onClick={() => setRenaming(true)} className="group flex max-w-full items-center gap-1.5 text-left" title="Rename investigation">
+            <button onClick={() => setRenaming(true)} className="group flex max-w-full items-center gap-1.5 text-left" title="Rename project">
               <h2 className="truncate text-lg font-semibold leading-tight">{inv.name}</h2>
               <Pencil size={13} className="shrink-0 text-neutral-500 opacity-0 group-hover:opacity-100" />
             </button>
           )}
-          <p className="mt-0.5 text-xs text-neutral-400">Investigation · {areas.length} area{areas.length === 1 ? '' : 's'} · {annotations.length} annotation{annotations.length === 1 ? '' : 's'}</p>
+          <p className="mt-0.5 text-xs text-neutral-400">Project · {areas.length} area{areas.length === 1 ? '' : 's'} · {annotations.length} annotation{annotations.length === 1 ? '' : 's'}</p>
         </div>
       </div>
       {actions}
 
-      <Segmented<Tab> label="Investigation sections" value={tab} onChange={setTab} options={[
+      <Segmented<Tab> label="Project sections" value={tab} onChange={setTab} options={[
         { value: 'areas', label: `Areas (${areas.length})` },
         { value: 'timeline', label: 'Timeline' },
         { value: 'notes', label: 'Notes' },
@@ -119,10 +119,10 @@ export function InvestigationView({ investigation: inv, areas, annotations, onBa
 
       <div className="flex justify-end border-t border-line pt-3">
         <Button variant="danger" className="text-xs" onClick={async () => {
-          if (!confirm(`Delete the investigation "${inv.name}" with all ${areas.length} areas, imagery, notes and annotations? This can't be undone.`)) return
+          if (!confirm(`Delete the project "${inv.name}" with all ${areas.length} areas, imagery, notes and annotations? This can't be undone.`)) return
           await deleteInvestigation(inv.id)
           onBack()
-        }}><Trash size={13} /> Delete investigation</Button>
+        }}><Trash size={13} /> Delete project</Button>
       </div>
     </div>
   )

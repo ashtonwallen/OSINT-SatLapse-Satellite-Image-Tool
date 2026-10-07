@@ -20,7 +20,7 @@ export async function newInvestigation(name: string): Promise<Investigation> {
 /** The investigation new areas go into when the user hasn't picked one. */
 export async function ensureInvestigation(): Promise<Investigation> {
   const all = await storage.listInvestigations()
-  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? newInvestigation('My investigation')
+  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? newInvestigation('My project')
 }
 
 export async function updateInvestigation(id: string, patch: Partial<Pick<Investigation, 'name' | 'notes' | 'ai'>>): Promise<void> {
@@ -55,6 +55,9 @@ export async function createAndBackfill(investigationId: string, name: string, g
  * every tracked area. Jobs run one at a time in the worker.
  */
 export async function trackAllAreas(): Promise<void> {
+  // One-off: the default container was briefly named "My investigation".
+  const legacy = (await storage.listInvestigations()).find((i) => i.name === 'My investigation')
+  if (legacy) await updateInvestigation(legacy.id, { name: 'My project' })
   const areas = await storage.listAreas()
   for (const a of areas) {
     if (a.example) continue

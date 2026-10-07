@@ -17,6 +17,9 @@ import { rasterKey, type ImageEncoder, type Storage } from './storage'
 import { sceneId, sensorOf, type Area, type AreaSync, type IndexRaster, type SceneRecord } from './types'
 
 export type SyncMode = 'backfill' | 'track'
+/** Landsat is used up to the start of the Sentinel-2 archive. */
+const LANDSAT_CUTOFF = '2015-06-27'
+
 export type SyncPhase = 'search' | 'screen' | 'process' | 'aerial' | 'finalize' | 'done'
 
 export interface SyncProgress {
@@ -79,7 +82,9 @@ export async function syncArea(areaId: string, storage: Storage, encoder: ImageE
   }
 
   // Only Sentinel-2 records take part in the catalogue/sampling/change chain.
-  const existing = new Map((await storage.listScenes(areaId)).filter((s) => sensorOf(s) === 'sentinel-2').map((s) => [s.date, s]))
+  // Optical records (Sentinel-2 + Landsat) form the catalogue/sampling/change
+  // chain; aerial (NAIP) frames are handled separately.
+  const existing = new Map((await storage.listScenes(areaId)).filter((s) => sensorOf(s) !== 'naip').map((s) => [s.date, s]))
   const processedDates = [...existing.values()].filter((s) => s.status === 'processed').map((s) => s.date).sort()
   const latestProcessed = processedDates.at(-1)
 
@@ -97,10 +102,30 @@ export async function syncArea(areaId: string, storage: Storage, encoder: ImageE
     () => findAcquisitions({ aoi: area.geometry, epsg: area.grid.epsg, datetime: `${start}/..`, sources: opts.sources, maxSceneCloudPct: 95, signal }),
     signal,
   )
+  // Landsat fills the years before Sentinel-2 (and any earlier gaps).
+  if (area.settings.historyDepth === 'landsat') {
+    progress({ phase: 'search', done: 0, total: 1, message: 'Searching the Landsat archive (1984–2015)…' })
+    const firstS2 = cat.acquisitions[0]?.date ?? LANDSAT_CUTOFF
+    const end = firstS2 < LANDSAT_CUTOFF ? firstS2 : LANDSAT_CUTOFF
+    const ls = await withRetry(
+      () => findAcquisitions({ aoi: area.geometry, epsg: area.grid.epsg, datetime: `${start}/${end}T00:00:00Z`, sources: ['pc-landsat'], maxSceneCloudPct: 90, signal }),
+      signal,
+    ).catch((e) => {
+      if (signal?.aborted) throw e
+      cat.warnings.push(`Landsat: ${e instanceof Error ? e.message : String(e)}`)
+      return null
+    })
+    if (ls) {
+      const s2Dates = new Set(cat.acquisitions.map((a) => a.date))
+      cat.acquisitions = [...ls.acquisitions.filter((a) => !s2Dates.has(a.date) && a.date < end), ...cat.acquisitions].sort((a, b) => a.date.localeCompare(b.date))
+      cat.warnings.push(...ls.warnings)
+    }
+  }
   const fresh = cat.acquisitions.filter((a) => !existing.has(a.date))
   const result: SyncResult = { found: fresh.length, processed: 0, rejected: 0, skipped: 0, warnings: cat.warnings }
 
   const record = (a: Acquisition, status: SceneRecord['status'], cloudPct: number, coveragePct: number, reason?: string): SceneRecord => ({
+    ...(a.items[0]?.sensor === 'landsat' ? { sensor: 'landsat' as const, gsd: 30 } : {}),
     id: sceneId(areaId, a.date),
     areaId,
     date: a.date,

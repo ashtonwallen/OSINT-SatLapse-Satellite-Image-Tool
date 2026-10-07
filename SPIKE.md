@@ -141,3 +141,27 @@ Screening with SCL alone is cheap: 83 scenes cost about 1 MB and 11 s. Full proc
 - Uncalibrated 8-bit values, so NAIP gets no land-cover stats and isn't part of change detection.
 - Low frequency (every 2–3 years).
 - Contiguous US only.
+
+## Addendum (Phase 3.5): Landsat Collection 2 Level-2
+
+**Browser access, verified from the app:**
+- Earth Search's `landsat-c2-l2` items point at `s3://usgs-landsat` (requester-pays), which a browser can't read.
+- Planetary Computer's `landsat-c2-l2` works: STAC with CORS, plus SAS-signed `landsateuwest.blob.core.windows.net` COGs with Range and CORS. Coverage runs from Landsat 4 (1982) through 9.
+
+**Integration:**
+- Asset keys are shared across TM, ETM+ and OLI (`blue`, `green`, `red`, `nir08`, `swir16`, `qa_pixel`), so one normalizer handles every Landsat mission.
+- QA_PIXEL bits (fill, dilated cloud, cirrus, cloud, shadow, snow, water) are converted to SCL-equivalent classes. Screening, masking and stats then run unchanged.
+- **Southern hemisphere:** USGS uses northern-zone codes everywhere (EPSG:326zz with negative northings), while area grids use EPSG:327zz there. Grids are translated by the 10,000 km false northing instead of skipping those scenes.
+- **Resolution:** 30 m pixels are resampled (nearest neighbour) onto the area's 10 m grid. Each frame is labelled "Landsat N · 30 m".
+- **Date range:** Landsat is used up to the first Sentinel-2 acquisition (cut-off 2015-06-27), via the "Since 1984" history option.
+- **Landsat 7 stripes:** after May 2003, Landsat 7's broken scan-line corrector leaves striped gaps in the data. Those scenes fall below the 90% coverage threshold and are rejected automatically, so in practice the record leans on Landsat 5 (to 2011–13) and Landsat 8.
+
+**Harmonisation:** TM/ETM+ values are converted to the OLI scale with the **surface-reflectance** OLS coefficients from Roy et al. (2016), Table 2. OLI is then treated as equivalent to Sentinel-2 MSI; HLS bandpass differences are about 2–3%.
+
+**Bug caught by visual check:** the first version used the same paper's *top-of-atmosphere* coefficients, whose NIR intercept of +0.041 made open water read as 0–1% in the Landsat 5 and 7 years. The fix changes Lake Oroville's water share from 1% → 52% (1990, Landsat 5) and 0% → 36% (January 2014, Landsat 7). Landsat 8 (unharmonised) reads 47% in April 2014. These are consistent with each other and with the imagery. A unit test now asserts that dark water keeps a positive NDWI after harmonisation.
+
+**Cost, measured:** an 11.5 km² area, best-per-quarter, 1982–2026:
+- 1,550 candidate acquisitions screened, 168 processed.
+- 10 min and ~1 GB in Node, with similar cost expected in the browser.
+
+The form warns about this and recommends quarterly sampling for this range.

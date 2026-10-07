@@ -1,7 +1,7 @@
 // Load Sentinel-2 bands over an area (mosaicking same-day tiles) and render
 // products. Pure TypedArray math; outputs raw RGBA buffers, never ImageData.
 import { readBandToGrid } from './cog'
-import type { Grid } from './geo'
+import { gridInCrs, type Grid } from './geo'
 import { BAND_KEYS, resolveHref, type BandKey, type SceneRef } from './stac'
 
 export type ReflBand = Exclude<BandKey, 'scl'>
@@ -27,8 +27,11 @@ export async function readMosaicBand(
 ): Promise<Uint16Array | Uint8Array> {
   let out: Uint16Array | Uint8Array | null = null
   for (const item of items) {
+    const g = gridInCrs(grid, item.epsg)
+    if (!g) continue
     const url = await resolveHref(item, band, signal)
-    const { data } = await readBandToGrid(url, grid, signal)
+    let { data } = await readBandToGrid(url, g, signal)
+    if (band === 'scl' && item.sensor === 'landsat') data = qaPixelToScl(data)
     if (!out) {
       out = data
     } else {
@@ -48,7 +51,7 @@ export async function readMosaicBand(
  *  scale/offset, so mixed-source mosaics stay radiometrically consistent. */
 export async function loadAcquisitionBands(items: SceneRef[], grid: Grid, mask: Uint8Array, signal?: AbortSignal): Promise<SceneBands> {
   for (const it of items) {
-    if (it.epsg !== grid.epsg) throw new Error(`Scene CRS EPSG:${it.epsg} differs from grid EPSG:${grid.epsg}`)
+    if (!gridInCrs(grid, it.epsg)) throw new Error(`Scene CRS EPSG:${it.epsg} is not in the area's UTM zone (EPSG:${grid.epsg})`)
   }
   // Items in one acquisition may come from different sources with different
   // offsets, so convert per item before mosaicking.
@@ -63,13 +66,15 @@ export async function loadAcquisitionBands(items: SceneRef[], grid: Grid, mask: 
       }
       const out = new Float32Array(grid.width * grid.height).fill(NaN)
       for (const item of items) {
-        const { data } = await readBandToGrid(await resolveHref(item, band, signal), grid, signal)
-        const { scale, offset } = item.bands[band]
+        const { data } = await readBandToGrid(await resolveHref(item, band, signal), gridInCrs(grid, item.epsg)!, signal)
+        const { scale, offset, harmonize } = item.bands[band]
+        const slope = harmonize?.slope ?? 1
+        const intercept = harmonize?.intercept ?? 0
         let missing = false
         for (let i = 0; i < out.length; i++) {
           if (!Number.isNaN(out[i])) continue
           const dn = data[i]
-          if (dn !== 0) out[i] = dn * scale + offset
+          if (dn !== 0) out[i] = (dn * scale + offset) * slope + intercept
           else if (mask[i]) missing = true
         }
         if (!missing) break
@@ -90,6 +95,25 @@ export const SCL = {
   NO_DATA: 0, SATURATED: 1, DARK: 2, CLOUD_SHADOW: 3, VEGETATION: 4, NOT_VEGETATED: 5,
   WATER: 6, UNCLASSIFIED: 7, CLOUD_MEDIUM: 8, CLOUD_HIGH: 9, THIN_CIRRUS: 10, SNOW: 11,
 } as const
+
+/**
+ * Landsat Collection 2 QA_PIXEL bits → SCL-equivalent classes, so screening,
+ * masking and stats work identically for both sensors. Bits: 0 fill,
+ * 1 dilated cloud, 2 cirrus (OLI), 3 cloud, 4 cloud shadow, 5 snow, 7 water.
+ */
+export function qaPixelToScl(qa: ArrayLike<number>): Uint8Array {
+  const out = new Uint8Array(qa.length)
+  for (let i = 0; i < qa.length; i++) {
+    const v = qa[i]
+    if (v & 1) out[i] = SCL.NO_DATA
+    else if (v & (0b1110)) out[i] = SCL.CLOUD_HIGH
+    else if (v & 0b10000) out[i] = SCL.CLOUD_SHADOW
+    else if (v & 0b100000) out[i] = SCL.SNOW
+    else if (v & 0b10000000) out[i] = SCL.WATER
+    else out[i] = SCL.UNCLASSIFIED
+  }
+  return out
+}
 
 export type PixelClass = 'clear' | 'cloud' | 'nodata'
 

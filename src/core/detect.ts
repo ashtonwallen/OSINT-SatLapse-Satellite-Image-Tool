@@ -135,7 +135,7 @@ const yearsText = (ys: number[]) => (ys.length > 3 ? `${ys[0]}–${ys[ys.length 
 
 export function detectEvents(areaId: string, areaKm2: number, allScenes: SceneRecord[]): ChangeEvent[] {
   const scenes = allScenes
-    .filter((s) => s.status === 'processed' && s.stats && (s.sensor ?? 'sentinel-2') === 'sentinel-2')
+    .filter((s) => s.status === 'processed' && s.stats && s.sensor !== 'naip')
     .sort((a, b) => a.date.localeCompare(b.date))
   const events: ChangeEvent[] = []
 

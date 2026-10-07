@@ -39,6 +39,7 @@ export function selectScenes<T extends Candidate>(cands: T[], sampling: Sampling
 }
 
 export function historyStart(depth: HistoryDepth, now = new Date()): string {
+  if (depth === 'landsat') return '1982-08-01T00:00:00Z'
   if (depth === 'all') return '2015-06-01T00:00:00Z'
   const years = depth === '1y' ? 1 : 3
   const d = new Date(now)

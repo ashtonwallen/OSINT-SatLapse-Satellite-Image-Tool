@@ -10,13 +10,13 @@ interface Props {
   onCreate(name: string): void
 }
 
-export function InvestigationList({ investigations, areas, onOpen, onCreate }: Props) {
+export function ProjectList({ investigations, areas, onOpen, onCreate }: Props) {
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Investigations</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Projects</h2>
         <Button variant="ghost" className="!px-2 text-xs" onClick={() => setNaming(true)}><Plus size={14} /> New</Button>
       </div>
       {naming && (

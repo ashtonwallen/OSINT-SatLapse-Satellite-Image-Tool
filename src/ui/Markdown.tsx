@@ -1,4 +1,4 @@
-// Minimal, safe Markdown → React renderer for investigation notes.
+// Minimal, safe Markdown → React renderer for project notes.
 // Builds elements directly (never innerHTML), so notes can't inject markup.
 // Supports: # headings, paragraphs, - / * / 1. lists, > quotes, ``` code
 // blocks, **bold**, *italic*, `code`, [links](https://…) (http/https/mailto only).

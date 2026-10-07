@@ -9,8 +9,8 @@ import { useAnnotations, useAreas, useInvestigations } from './app/hooks'
 import { AreaDetail, type FrameState } from './ui/AreaDetail'
 import { AreaList } from './ui/AreaList'
 import { CompareOverlay } from './ui/CompareOverlay'
-import { InvestigationList } from './ui/InvestigationList'
-import { InvestigationView } from './ui/InvestigationView'
+import { ProjectList } from './ui/ProjectList'
+import { ProjectView } from './ui/ProjectView'
 import { IconButton, Logo } from './ui/kit'
 import { MapHud } from './ui/MapHud'
 import { MapView, type DrawMode, type MapViewHandle } from './ui/MapView'
@@ -40,7 +40,7 @@ export function App() {
   const area = invAreas.find((a) => a.id === areaId) ?? null
   const annotations = useAnnotations(invId)
 
-  // With a single investigation, skip the list and open it directly.
+  // With a single project, skip the list and open it directly.
   const autoOpened = useRef(false)
   useEffect(() => {
     if (autoOpened.current || !investigations) return
@@ -103,17 +103,17 @@ export function App() {
     )
   } else if (inv) {
     panel = (
-      <InvestigationView investigation={inv} areas={invAreas} annotations={annotations}
+      <ProjectView investigation={inv} areas={invAreas} annotations={annotations}
         onBack={() => setInvId(null)} onOpenArea={openArea} onDraw={startDraw}
         onFlyTo={(p) => map.current?.fitBounds([p[0] - 0.01, p[1] - 0.01, p[0] + 0.01, p[1] + 0.01], 15)} />
     )
   } else if (investigations && areas) {
     panel = (
-      <InvestigationList investigations={investigations} areas={areas} onOpen={openInvestigation}
+      <ProjectList investigations={investigations} areas={areas} onOpen={openInvestigation}
         onCreate={async (n) => openInvestigation((await newInvestigation(n)).id)} />
     )
   }
-  // First run: no investigations yet. Drawing an area creates one.
+  // First run: no projects yet. Drawing an area creates one.
   const firstRun = !!investigations && investigations.length === 0 && !pending
 
   const hud = area ? frame.hud : null

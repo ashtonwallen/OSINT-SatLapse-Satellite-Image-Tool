@@ -144,3 +144,22 @@ export function gridCornersLngLat(g: Grid): [LngLat, LngLat, LngLat, LngLat] {
   const c = unproject([[g.x0, g.y0], [x1, g.y0], [x1, y1], [g.x0, y1]], g.epsg)
   return [c[0], c[1], c[2], c[3]]
 }
+
+/**
+ * The grid expressed in another file's CRS when both are the same UTM zone.
+ * USGS Landsat uses northern-zone codes (EPSG:326zz) everywhere, with negative
+ * northings south of the equator, while our grids use EPSG:327zz there; the
+ * two differ only by the 10,000 km false northing. Returns null otherwise.
+ */
+export function gridInCrs(grid: Grid, epsg: number): Grid | null {
+  if (epsg === grid.epsg) return grid
+  const zone = (e: number) => e % 100
+  const north = (e: number) => e >= 32601 && e <= 32660
+  const south = (e: number) => e >= 32701 && e <= 32760
+  if (zone(epsg) !== zone(grid.epsg)) return null
+  if (north(epsg) && south(grid.epsg)) return { ...grid, epsg, y0: grid.y0 - 10_000_000 }
+  if (south(epsg) && north(grid.epsg)) return { ...grid, epsg, y0: grid.y0 + 10_000_000 }
+  return null
+}
+
+export const sameUtmZone = (a: number, b: number) => a === b || (a % 100 === b % 100 && Math.floor(a / 100) !== Math.floor(b / 100) && [326, 327].includes(Math.floor(a / 100)) && [326, 327].includes(Math.floor(b / 100)))

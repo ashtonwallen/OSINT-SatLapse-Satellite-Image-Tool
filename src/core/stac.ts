@@ -1,5 +1,6 @@
-// STAC search across key-free Sentinel-2 L2A catalogues, normalized into a
-// single SceneRef shape. No DOM dependencies (uses only fetch).
+// STAC search across key-free optical catalogues (Sentinel-2 L2A, Landsat
+// Collection 2 L2), normalized into a single SceneRef shape. No DOM
+// dependencies (uses only fetch).
 import type { BBox, PolygonGeometry } from './geo'
 
 export type BandKey = 'blue' | 'green' | 'red' | 'nir' | 'swir16' | 'scl'
@@ -10,7 +11,11 @@ export interface BandAsset {
   /** reflectance = DN * scale + offset (ignored for SCL) */
   scale: number
   offset: number
+  /** Cross-sensor harmonisation applied after scaling: r' = r * slope + intercept. */
+  harmonize?: { slope: number; intercept: number }
 }
+
+export type OpticalSensor = 'sentinel-2' | 'landsat'
 
 export interface SceneRef {
   id: string
@@ -23,10 +28,13 @@ export interface SceneRef {
   bbox: BBox
   tile: string | null
   platform: string | null
+  sensor: OpticalSensor
+  /** Native resolution of the reflectance bands, metres. */
+  resolutionM: number
   bands: Record<BandKey, BandAsset>
 }
 
-export type SourceId = 'earth-search-c1' | 'earth-search' | 'planetary-computer'
+export type SourceId = 'earth-search-c1' | 'earth-search' | 'planetary-computer' | 'pc-landsat'
 
 interface StacSource {
   id: SourceId
@@ -91,6 +99,8 @@ function normalizeEarthSearch(sourceId: SourceId) {
       bbox: item.bbox,
       tile: (p['grid:code'] as string | undefined)?.replace(/^MGRS-/, '') ?? null,
       platform: (p.platform as string | undefined) ?? null,
+      sensor: 'sentinel-2',
+      resolutionM: 10,
       bands,
     }
   }
@@ -121,6 +131,62 @@ function normalizePlanetaryComputer(item: StacItem): SceneRef {
     bbox: item.bbox,
     tile: (p['s2:mgrs_tile'] as string | undefined) ?? null,
     platform: (p.platform as string | undefined) ?? null,
+    sensor: 'sentinel-2',
+    resolutionM: 10,
+    bands,
+  }
+}
+
+// Landsat Collection 2 Level-2 (Planetary Computer). Common-name asset keys
+// are the same across TM, ETM+ and OLI; "scl" maps to QA_PIXEL, which the
+// scene loader converts to SCL-equivalent classes (see qaPixelToScl).
+const LANDSAT_KEYS: Record<BandKey, string> = {
+  blue: 'blue', green: 'green', red: 'red', nir: 'nir08', swir16: 'swir16', scl: 'qa_pixel',
+}
+
+/**
+ * TM/ETM+ → OLI harmonisation using the *surface reflectance* OLS coefficients
+ * of Roy et al. (2016), Remote Sensing of Environment 185, Table 2. (The same
+ * paper's top-of-atmosphere set has large intercepts, e.g. +0.041 in NIR, that
+ * push dark water above the NDWI threshold; it must not be used on L2 data.)
+ * OLI is then treated as equivalent to Sentinel-2 MSI: HLS bandpass
+ * adjustments between them are within ~2–3%, below our thresholds.
+ */
+export const ETM_TO_OLI: Record<Exclude<BandKey, 'scl'>, { slope: number; intercept: number }> = {
+  blue: { slope: 0.9785, intercept: -0.0095 },
+  green: { slope: 0.9542, intercept: -0.0016 },
+  red: { slope: 0.9825, intercept: -0.0022 },
+  nir: { slope: 1.0073, intercept: -0.0021 },
+  swir16: { slope: 1.0171, intercept: -0.003 },
+}
+
+function normalizeLandsat(item: StacItem): SceneRef {
+  const p = item.properties
+  const platform = (p.platform as string | undefined) ?? null
+  const olderSensor = platform === 'landsat-4' || platform === 'landsat-5' || platform === 'landsat-7'
+  const bands = {} as Record<BandKey, BandAsset>
+  for (const k of BAND_KEYS) {
+    const a = item.assets[LANDSAT_KEYS[k]]
+    if (!a) throw new Error(`Item ${item.id} is missing asset ${k}`)
+    const rb = a['raster:bands']?.[0]
+    bands[k] = {
+      href: a.href,
+      scale: rb?.scale ?? 0.0000275,
+      offset: rb?.offset ?? -0.2,
+      harmonize: k !== 'scl' && olderSensor ? ETM_TO_OLI[k] : undefined,
+    }
+  }
+  return {
+    id: item.id,
+    sourceId: 'pc-landsat',
+    datetime: String(p.datetime),
+    sceneCloudPct: num(p['eo:cloud_cover']),
+    epsg: epsgOf(item, 'red'),
+    bbox: item.bbox,
+    tile: p['landsat:wrs_path'] ? `${p['landsat:wrs_path']}/${p['landsat:wrs_row']}` : null,
+    platform,
+    sensor: 'landsat',
+    resolutionM: 30,
     bands,
   }
 }
@@ -173,6 +239,16 @@ export const SOURCES: Record<SourceId, StacSource> = {
     datetimeSortField: 'datetime',
     normalize: normalizePlanetaryComputer,
     sign: signPlanetaryComputer,
+  },
+  'pc-landsat': {
+    id: 'pc-landsat',
+    label: 'Landsat Collection 2 L2 (Planetary Computer)',
+    searchUrl: 'https://planetarycomputer.microsoft.com/api/stac/v1/search',
+    collection: 'landsat-c2-l2',
+    assetKeys: LANDSAT_KEYS,
+    datetimeSortField: 'datetime',
+    normalize: normalizeLandsat,
+    sign: (href, signal) => pcSign(href, 'landsat-c2-l2', signal),
   },
 }
 

@@ -1,7 +1,7 @@
 // Merged scene catalogue: queries every configured STAC source, keeps only
 // tiles in the area's UTM zone, de-duplicates by acquisition date + MGRS tile
 // (earlier sources win) and groups same-day tiles into one acquisition.
-import type { PolygonGeometry } from './geo'
+import { sameUtmZone, type PolygonGeometry } from './geo'
 import { searchScenes, type SceneRef, type SourceId } from './stac'
 
 export const DEFAULT_SOURCE_ORDER: SourceId[] = ['earth-search-c1', 'earth-search', 'planetary-computer']
@@ -61,7 +61,7 @@ export async function findAcquisitions(q: CatalogQuery): Promise<CatalogResult> 
   results.forEach((items) => {
     for (const it of items) {
       itemCount++
-      if (it.epsg !== q.epsg) continue
+      if (!sameUtmZone(it.epsg, q.epsg)) continue
       const key = `${it.datetime.slice(0, 10)}|${it.tile ?? it.id}`
       if (!byKey.has(key)) byKey.set(key, it)
     }

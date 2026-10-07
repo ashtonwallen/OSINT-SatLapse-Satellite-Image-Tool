@@ -38,7 +38,7 @@ export function newId(): string {
 
 export function createInvestigation(name: string): Investigation {
   const now = new Date().toISOString()
-  return { id: newId(), schemaVersion: SCHEMA_VERSION, name: name.trim() || 'Untitled investigation', notes: '', createdAt: now, updatedAt: now }
+  return { id: newId(), schemaVersion: SCHEMA_VERSION, name: name.trim() || 'Untitled project', notes: '', createdAt: now, updatedAt: now }
 }
 
 export function createArea(name: string, geometry: PolygonGeometry, settings: AreaSettings = DEFAULT_SETTINGS, investigationId = ''): Area {

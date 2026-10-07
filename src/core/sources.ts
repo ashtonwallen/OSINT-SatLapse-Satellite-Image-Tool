@@ -45,6 +45,6 @@ export const DATA_SOURCES: DataSourceInfo[] = [
   {
     id: 'pc-landsat', label: 'Landsat Collection 2 Level-2', provider: 'USGS via Microsoft Planetary Computer', kind: 'optical',
     tier: 'free', requiresKey: false, resolutionM: 30, revisit: '8–16 days', coverage: { start: '1982-08-22', region: 'global' },
-    browserAccess: 'verified', attribution: 'Landsat imagery courtesy of the U.S. Geological Survey', status: 'planned',
+    browserAccess: 'verified', attribution: 'Landsat imagery courtesy of the U.S. Geological Survey', status: 'active',
   },
 ]

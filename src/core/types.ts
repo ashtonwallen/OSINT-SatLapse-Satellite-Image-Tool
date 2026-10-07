@@ -5,7 +5,8 @@ import type { Grid, PolygonGeometry } from './geo'
 // v1: areas at top level. v2: investigations contain areas, notes, annotations.
 export const SCHEMA_VERSION = 2
 
-export type HistoryDepth = '1y' | '3y' | 'all'
+/** 'all' = Sentinel-2 era (2015→); 'landsat' adds Landsat 4/5/7/8 back to 1984. */
+export type HistoryDepth = '1y' | '3y' | 'all' | 'landsat'
 export type Sampling = 'all' | 'month' | 'quarter'
 
 export interface AreaSettings {
@@ -28,7 +29,9 @@ export interface AreaSync {
   error?: string
 }
 
-/** Top-level container: one or more areas, notes, annotations, event log. */
+/** Top-level container shown in the UI as a "project": one or more areas, notes,
+ *  annotations and an event log. (Named Investigation in code and storage for
+ *  schema compatibility.) */
 export interface Investigation {
   id: string
   schemaVersion: number

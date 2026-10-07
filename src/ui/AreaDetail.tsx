@@ -42,7 +42,7 @@ interface Props {
   onFit(): void
   /** Ask the map for a click location (annotation placement). */
   onPickPoint(cb: (p: LngLat) => void): void
-  /** Open at this scene date (from the investigation timeline). */
+  /** Open at this scene date (from the project timeline). */
   focusDate?: string
 }
 
@@ -53,27 +53,35 @@ type Collection = 'satellite' | 'aerial'
 
 const sensorLabel = (s: SceneRecord) => {
   if (sensorOf(s) === 'naip') return `NAIP aerial · ${s.gsd ?? 1} m`
+  if (sensorOf(s) === 'landsat') {
+    const n = /^L[CET]0?(d)/.exec(s.sources[0]?.itemId ?? '')?.[1]
+    return `Landsat ${n ?? ''} · 30 m`.replace('  ', ' ')
+  }
   const id = s.sources[0]?.itemId ?? ''
   const sat = /^S2([ABC])/.exec(id)?.[1] ?? /S2([ABC])_MSI/.exec(id)?.[1]
   return `Sentinel-2${sat ?? ''} · 10 m`
 }
 
-const attributionFor = (fs: SceneRecord[]) =>
-  fs.some((f) => sensorOf(f) === 'naip')
-    ? DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution
-    : copernicusAttribution(fs.map((f) => Number(f.date.slice(0, 4))))
+const attributionFor = (fs: SceneRecord[]) => {
+  if (fs.some((f) => sensorOf(f) === 'naip')) return DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution
+  const s2 = fs.filter((f) => sensorOf(f) === 'sentinel-2')
+  const parts = []
+  if (s2.length) parts.push(copernicusAttribution(s2.map((f) => Number(f.date.slice(0, 4)))))
+  if (fs.some((f) => sensorOf(f) === 'landsat')) parts.push(DATA_SOURCES.find((d) => d.id === 'pc-landsat')!.attribution)
+  return parts.join('. ')
+}
 
 export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDate }: Props) {
   const { scenes, events } = useAreaData(area.id)
   const progress = useProgress(area.id)
   const cache = useImageCache(area.id)
-  const s2Frames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) === 'sentinel-2'), [scenes])
+  const s2Frames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) !== 'naip'), [scenes])
   const aerialFrames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) === 'naip'), [scenes])
   const [collection, setCollection] = useState<Collection>('satellite')
   const aerial = collection === 'aerial' && aerialFrames.length > 0
   const frames = aerial ? aerialFrames : s2Frames
   const counts = useMemo(() => {
-    const s2 = scenes.filter((s) => sensorOf(s) === 'sentinel-2')
+    const s2 = scenes.filter((s) => sensorOf(s) !== 'naip')
     return { rejected: s2.filter((s) => s.status === 'rejected').length, skipped: s2.filter((s) => s.status === 'skipped').length }
   }, [scenes])
   const areaCorners = useMemo(() => gridCornersLngLat(area.grid), [area.grid])
@@ -95,7 +103,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
 
   useEffect(() => { void markSeen(area) }, [area.id, area.sync.unseen])
   useEffect(() => { if (follow && frames.length) setIdx(frames.length - 1) }, [frames.length, follow])
-  // Jump to a date requested by the investigation timeline.
+  // Jump to a date requested by the project timeline.
   const focused = useRef<string | null>(null)
   useEffect(() => {
     if (!focusDate || focused.current === focusDate || !s2Frames.length) return
@@ -208,7 +216,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
           )}
           <p className="mt-0.5 text-xs text-neutral-400">
             {area.areaKm2 < 1 ? `${(area.areaKm2 * 100).toFixed(0)} ha` : `${area.areaKm2.toFixed(1)} km²`} ·{' '}
-            {area.settings.historyDepth === 'all' ? 'full history' : `${area.settings.historyDepth.replace('y', '')}-year history`} ·{' '}
+            {area.settings.historyDepth === 'landsat' ? 'history since 1984' : area.settings.historyDepth === 'all' ? 'history since 2015' : `${area.settings.historyDepth.replace('y', '')}-year history`} ·{' '}
             {area.settings.sampling === 'all' ? 'every clear scene' : `best per ${area.settings.sampling}`}
           </p>
         </div>
@@ -260,7 +268,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
           {aerialFrames.length > 0 && (
             <div className="mb-3">
               <Segmented<Collection> label="Imagery" value={collection} onChange={switchCollection} options={[
-                { value: 'satellite', label: <>Satellite · 10 m <span className="opacity-60">({s2Frames.length})</span></>, title: 'Sentinel-2: every few days, 10 m' },
+                { value: 'satellite', label: <>Satellite · {s2Frames.some((f) => sensorOf(f) === 'landsat') ? '10–30' : '10'} m <span className="opacity-60">({s2Frames.length})</span></>, title: 'Sentinel-2 (10 m) and Landsat (30 m)' },
                 { value: 'aerial', label: <>Aerial · {Math.min(...aerialFrames.map((f) => f.gsd ?? 1))} m <span className="opacity-60">({aerialFrames.length})</span></>, title: 'NAIP aerial photos: every 2–3 years, US only' },
               ]} />
             </div>

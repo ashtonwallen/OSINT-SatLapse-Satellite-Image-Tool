@@ -27,7 +27,7 @@ export function NewAreaForm({ geometry, maxAreaKm2, onCreate, onRedraw, onCancel
 
   // Rough expectation-setting, from the Phase 1/2 measurements.
   const perYear = settings.sampling === 'month' ? 12 : settings.sampling === 'quarter' ? 4 : 50
-  const years = settings.historyDepth === '1y' ? 1 : settings.historyDepth === '3y' ? 3 : new Date().getFullYear() - 2015
+  const years = settings.historyDepth === '1y' ? 1 : settings.historyDepth === '3y' ? 3 : new Date().getFullYear() - (settings.historyDepth === 'landsat' ? 1984 : 2015)
   const km2 = v.ok ? v.areaKm2 : 0
   const mbPerScene = Math.max(4, Math.min(30, km2 * 0.25))
   const estScenes = perYear * years
@@ -87,8 +87,15 @@ export function NewAreaForm({ geometry, maxAreaKm2, onCreate, onRedraw, onCancel
           <Segmented label="History depth" value={settings.historyDepth} onChange={(d) => set('historyDepth', d)} options={[
             { value: '1y', label: '1 year' },
             { value: '3y', label: '3 years' },
-            { value: 'all', label: 'All (2015→)' },
+            { value: 'all', label: 'Since 2015' },
+            { value: 'landsat', label: 'Since 1984', title: 'Adds Landsat 4/5/7/8 (30 m) before Sentinel-2' },
           ]} />
+          {settings.historyDepth === 'landsat' && (
+            <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+              Adds Landsat (30 m) for 1984–2015, harmonised to Sentinel-2 so charts stay comparable. Older frames are 3× coarser,
+              and the 1980s–90s have fewer clear images. "Best per quarter" is recommended for this range.
+            </p>
+          )}
         </div>
       </div>
 
