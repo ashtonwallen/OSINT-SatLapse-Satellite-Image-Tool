@@ -8,6 +8,7 @@ import { createAndBackfill, trackAllAreas } from './app/actions'
 import { useAreas } from './app/hooks'
 import { AreaDetail, type FrameState } from './ui/AreaDetail'
 import { AreaList } from './ui/AreaList'
+import { CompareOverlay } from './ui/CompareOverlay'
 import { IconButton, Logo } from './ui/kit'
 import { MapHud } from './ui/MapHud'
 import { MapView, type DrawMode, type MapViewHandle } from './ui/MapView'
@@ -109,6 +110,7 @@ export function App() {
           pending={pending}
         />
         {hud && drawMode === 'none' && <MapHud hud={hud} />}
+        {selected && frame.compare && map.current?.getMap() && <CompareOverlay map={map.current.getMap()!} state={frame.compare} />}
       </main>
     </div>
   )

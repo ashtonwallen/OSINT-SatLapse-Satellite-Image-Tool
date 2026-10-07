@@ -17,6 +17,7 @@ export interface FrameOverlay {
 
 export interface MapViewHandle {
   fitBounds(b: LngLatBoundsLike, maxZoom?: number): void
+  getMap(): MlMap | null
 }
 
 interface Props {
@@ -59,6 +60,7 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
 
   useImperativeHandle(ref, () => ({
     fitBounds: (b, maxZoom = 13) => mapRef.current?.fitBounds(b, { padding: 60, maxZoom, duration: 800 }),
+    getMap: () => mapRef.current,
   }))
 
   // Create map once.

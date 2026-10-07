@@ -1,6 +1,6 @@
 import {
   ChevronDown, ChevronLeft, Droplets, Image, Leaf, LocateFixed, Pause, Pencil, Play, RefreshCw,
-  StepBack, StepForward, Trash, TriangleAlert, Building, X,
+  StepBack, StepForward, Trash, TriangleAlert, Building, X, Columns2, Film,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { copernicusAttribution } from '../core/attribution'
@@ -11,7 +11,10 @@ import { deleteArea, markSeen, renameArea } from '../app/actions'
 import { engine } from '../app/engineClient'
 import { useAreaData, useImageCache, useProgress } from '../app/hooks'
 import { Button, IconButton, Section, Segmented, fmtDate, relativeDays } from './kit'
+import type { CompareState } from './CompareOverlay'
+import { ExportPanel } from './ExportPanel'
 import type { ChangeView, HudState, View } from './MapHud'
+import { SERIES, SeriesChart } from './SeriesChart'
 import type { FrameOverlay } from './MapView'
 import { Timeline } from './Timeline'
 
@@ -29,7 +32,7 @@ const CONFIDENCE_HELP: Record<Confidence, string> = {
   low: 'Compared with the previous image only (not enough history), or not confirmed by the next image',
 }
 
-export interface FrameState { overlays: FrameOverlay[]; hud: HudState | null }
+export interface FrameState { overlays: FrameOverlay[]; hud: HudState | null; compare?: CompareState | null }
 
 interface Props {
   area: Area
@@ -49,6 +52,11 @@ const sensorLabel = (s: SceneRecord) => {
   const sat = /^S2([ABC])/.exec(id)?.[1] ?? /S2([ABC])_MSI/.exec(id)?.[1]
   return `Sentinel-2${sat ?? ''} · 10 m`
 }
+
+const attributionFor = (fs: SceneRecord[]) =>
+  fs.some((f) => sensorOf(f) === 'naip')
+    ? DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution
+    : copernicusAttribution(fs.map((f) => Number(f.date.slice(0, 4))))
 
 export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   const { scenes, events } = useAreaData(area.id)
@@ -74,6 +82,9 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   const [opacity, setOpacity] = useState(1)
   const [renaming, setRenaming] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [comparing, setComparing] = useState(false)
+  const [beforeIdx, setBeforeIdx] = useState(0)
+  const [exporting, setExporting] = useState(false)
   const running = area.sync.status === 'running' || area.sync.status === 'queued' || !!progress
 
   useEffect(() => { void markSeen(area) }, [area.id, area.sync.unseen])
@@ -84,6 +95,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
     setCollection(c)
     setPlaying(false)
     setFollow(true)
+    setBeforeIdx(0)
     if (c === 'aerial') { setChange('none'); setView((v) => (v === 'ndvi' ? v : 'tc')) }
   }
   const step = (d: number) => frames.length && go((idx + d + frames.length) % frames.length)
@@ -121,13 +133,22 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   useEffect(() => {
     if (!frame) { onFrameRef.current({ overlays: [], hud: null }); return }
     let cancelled = false
+    const before = frames[Math.min(beforeIdx, frames.length - 1)]
+    if (comparing && before && before.id !== frame.id) {
+      void Promise.all([cache.get(before.id, view), cache.get(frame.id, view)]).then(([a, b]) => {
+        if (cancelled || !a || !b) return
+        const side = (f: SceneRecord, url: string) => ({ url, date: f.date, label: sensorLabel(f), corners: f.grid ? gridCornersLngLat(f.grid) : areaCorners })
+        onFrameRef.current({ overlays: [], hud: null, compare: { before: side(before, a), after: side(frame, b), pixelated: !aerial } })
+      })
+      return () => { cancelled = true }
+    }
     const kinds: ImageKind[] = change === 'none' ? [view] : [view, change]
     void Promise.all(kinds.map((k) => cache.get(frame.id, k))).then((urls) => {
       if (cancelled) return
       onFrameRef.current({
         overlays: urls.flatMap((url, i) => (url ? [{ url, corners, opacity: i === 0 ? opacity : Math.max(0.6, opacity), smooth: aerial }] : [])),
         hud: { date: frame.date, view, change, comparedDate: cmp?.comparedDate, sensor: sensorLabel(frame),
-          attribution: aerial ? DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution : copernicusAttribution(Number(frame.date.slice(0, 4))),
+          attribution: attributionFor([frame]),
           index: idx, count: frames.length },
       })
     })
@@ -136,7 +157,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
       if (next) kinds.forEach((kind) => void cache.get(next.id, kind))
     }
     return () => { cancelled = true }
-  }, [frame, view, change, opacity, corners, cache, frames, idx, cmp?.comparedDate, aerial])
+  }, [frame, view, change, opacity, corners, cache, frames, idx, cmp?.comparedDate, aerial, comparing, beforeIdx, areaCorners])
   useEffect(() => () => onFrameRef.current({ overlays: [], hud: null }), [])
 
   const baseline = s2Frames[0]?.stats
@@ -252,6 +273,27 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
                 options={[0.5, 1, 2, 4, 8].map((f) => ({ value: f, label: `${f}×` }))} />
             </div>
           </div>
+          <div className="mt-3 flex gap-2 border-t border-line pt-3">
+            <Button className={`flex-1 text-xs ${comparing ? '!border-accent !bg-accent/10' : ''}`} disabled={frames.length < 2}
+              onClick={() => { setComparing((c) => !c); setPlaying(false) }} aria-pressed={comparing}>
+              <Columns2 size={13} /> {comparing ? 'Stop comparing' : 'Compare dates'}
+            </Button>
+            <Button className="flex-1 text-xs" disabled={frames.length < 2} onClick={() => setExporting((x) => !x)} aria-pressed={exporting}>
+              <Film size={13} /> Export
+            </Button>
+          </div>
+          {comparing && (
+            <div className="mt-2 rounded-md bg-panel p-2 text-[11px] text-neutral-400">
+              <label className="flex items-center gap-2">
+                Before
+                <select value={Math.min(beforeIdx, frames.length - 1)} onChange={(e) => setBeforeIdx(Number(e.target.value))}
+                  className="flex-1 rounded border border-line bg-panel-2 px-2 py-1 font-mono text-xs text-neutral-200">
+                  {frames.map((f, i) => <option key={f.id} value={i}>{f.date}</option>)}
+                </select>
+              </label>
+              <p className="mt-1.5">After = the date selected on the timeline ({frame.date}). Drag the divider on the map.</p>
+            </div>
+          )}
         </Section>
       ) : !running && (
         <Section>
@@ -259,6 +301,13 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
           <p className="mt-1 text-xs text-neutral-500">
             {counts.rejected > 0 ? `${counts.rejected} scenes were too cloudy or incomplete. ` : ''}Try a longer history or a higher cloud limit.
           </p>
+        </Section>
+      )}
+
+      {exporting && frame && (
+        <Section>
+          <ExportPanel areaName={area.name} frames={frames} cache={cache} view={view} overlay={change === 'none' ? null : change}
+            fps={fps} pixelated={!aerial} sensorLabel={sensorLabel} attribution={attributionFor} onClose={() => setExporting(false)} />
         </Section>
       )}
 
@@ -306,16 +355,12 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
       {st && (
         <Section title="Land cover in your area" aside={baseline && frame !== frames[0] && <span className="text-[10px] text-neutral-500">vs {fmtDate(frames[0].date, 'short')}</span>}>
           <dl className="grid grid-cols-3 gap-2">
-            {([
-              { k: 'vegPct', label: 'Vegetation', color: 'text-green-400' },
-              { k: 'waterPct', label: 'Water', color: 'text-sky-400' },
-              { k: 'builtPct', label: 'Built & bare', color: 'text-fuchsia-400' },
-            ] as const).map(({ k, label, color }) => {
+            {SERIES.map(({ key: k, label, color }) => {
               const d = baseline && frame !== frames[0] ? st[k] - baseline[k] : null
               return (
                 <div key={k} className="rounded-md bg-panel p-2">
-                  <dt className="text-[10px] text-neutral-400">{label}</dt>
-                  <dd className={`text-lg font-semibold tabular-nums ${color}`}>{st[k].toFixed(1)}%</dd>
+                  <dt className="flex items-center gap-1.5 text-[10px] text-neutral-400"><span className="h-2 w-2 rounded-sm" style={{ background: color }} />{label}</dt>
+                  <dd className="text-lg font-semibold tabular-nums text-neutral-100">{st[k].toFixed(1)}%</dd>
                   {d !== null && (
                     <dd className={`text-[10px] tabular-nums ${Math.abs(d) < 0.5 ? 'text-neutral-500' : d > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                       {d > 0 ? '+' : ''}{d.toFixed(1)} pts
@@ -335,6 +380,13 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
               {cmp.builtGainPct >= 0.5 && <> · <span className="text-fuchsia-400">new built/bare {cmp.builtGainPct.toFixed(1)}%</span></>}
             </p>
           )}
+        </Section>
+      )}
+
+      {/* Time series */}
+      {!aerial && s2Frames.length > 1 && (
+        <Section title="Over time">
+          <SeriesChart frames={s2Frames} index={Math.min(idx, s2Frames.length - 1)} events={shownEvents} onSeek={(i) => i >= 0 && go(i)} />
         </Section>
       )}
 
