@@ -4,11 +4,12 @@ import type { LngLat } from '../core/geo'
 import type { Annotation, Area, ChangeEvent, Investigation } from '../core/types'
 import { deleteInvestigation, removeAnnotation, updateInvestigation } from '../app/actions'
 import { useEventsFor } from '../app/hooks'
+import { AiPanel } from './AiPanel'
 import { AreaList } from './AreaList'
 import { Button, IconButton, Segmented, fmtDate } from './kit'
 import { Markdown } from './Markdown'
 
-type Tab = 'areas' | 'timeline' | 'notes'
+type Tab = 'areas' | 'timeline' | 'notes' | 'ai'
 
 interface Props {
   investigation: Investigation
@@ -68,6 +69,7 @@ export function ProjectView({ investigation: inv, areas, annotations, onBack, on
         { value: 'areas', label: `Areas (${areas.length})` },
         { value: 'timeline', label: 'Timeline' },
         { value: 'notes', label: 'Notes' },
+        { value: 'ai', label: 'AI' },
       ]} />
 
       {tab === 'areas' && <AreaList areas={areas} onOpen={(a) => onOpenArea(a.id)} onDraw={onDraw} />}
@@ -116,6 +118,8 @@ export function ProjectView({ investigation: inv, areas, annotations, onBack, on
       )}
 
       {tab === 'notes' && <Notes inv={inv} />}
+
+      {tab === 'ai' && <AiPanel project={inv} />}
 
       <div className="flex justify-end border-t border-line pt-3">
         <Button variant="danger" className="text-xs" onClick={async () => {

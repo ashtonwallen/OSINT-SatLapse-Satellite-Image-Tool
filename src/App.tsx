@@ -43,10 +43,10 @@ export function App() {
   // With a single project, skip the list and open it directly.
   const autoOpened = useRef(false)
   useEffect(() => {
-    if (autoOpened.current || !investigations) return
+    if (autoOpened.current || !investigations || !areas) return
     autoOpened.current = true
-    if (investigations.length === 1) setInvId(investigations[0].id)
-  }, [investigations])
+    if (investigations.length === 1) openInvestigation(investigations[0].id)
+  }, [investigations, areas])
 
   // Tracking: every time the app opens, check each area for newer scenes.
   const tracked = useRef(false)
