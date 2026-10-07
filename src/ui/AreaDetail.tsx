@@ -1,13 +1,14 @@
 import {
   ChevronDown, ChevronLeft, Droplets, Image, Leaf, LocateFixed, Pause, Pencil, Play, RefreshCw,
-  StepBack, StepForward, Trash, TriangleAlert, Building, X, Columns2, Film,
+  StepBack, StepForward, Trash, TriangleAlert, Building, X, Columns2, Film, MapPin,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { copernicusAttribution } from '../core/attribution'
 import { gridCornersLngLat } from '../core/geo'
 import { DATA_SOURCES } from '../core/sources'
 import { sensorOf, type Area, type ChangeEvent, type ChangeStats, type Confidence, type ImageKind, type SceneRecord } from '../core/types'
-import { deleteArea, markSeen, renameArea } from '../app/actions'
+import { addAnnotation, deleteArea, markSeen, renameArea } from '../app/actions'
+import type { LngLat } from '../core/geo'
 import { engine } from '../app/engineClient'
 import { useAreaData, useImageCache, useProgress } from '../app/hooks'
 import { Button, IconButton, Section, Segmented, fmtDate, relativeDays } from './kit'
@@ -39,6 +40,10 @@ interface Props {
   onBack(): void
   onFrame(f: FrameState): void
   onFit(): void
+  /** Ask the map for a click location (annotation placement). */
+  onPickPoint(cb: (p: LngLat) => void): void
+  /** Open at this scene date (from the investigation timeline). */
+  focusDate?: string
 }
 
 const PHASES = ['search', 'screen', 'process', 'aerial', 'finalize'] as const
@@ -58,7 +63,7 @@ const attributionFor = (fs: SceneRecord[]) =>
     ? DATA_SOURCES.find((d) => d.id === 'pc-naip')!.attribution
     : copernicusAttribution(fs.map((f) => Number(f.date.slice(0, 4))))
 
-export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
+export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDate }: Props) {
   const { scenes, events } = useAreaData(area.id)
   const progress = useProgress(area.id)
   const cache = useImageCache(area.id)
@@ -85,10 +90,23 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
   const [comparing, setComparing] = useState(false)
   const [beforeIdx, setBeforeIdx] = useState(0)
   const [exporting, setExporting] = useState(false)
+  const [annot, setAnnot] = useState<{ lngLat: LngLat; text: string } | null>(null)
   const running = area.sync.status === 'running' || area.sync.status === 'queued' || !!progress
 
   useEffect(() => { void markSeen(area) }, [area.id, area.sync.unseen])
   useEffect(() => { if (follow && frames.length) setIdx(frames.length - 1) }, [frames.length, follow])
+  // Jump to a date requested by the investigation timeline.
+  const focused = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusDate || focused.current === focusDate || !s2Frames.length) return
+    const i = s2Frames.findIndex((f) => f.date === focusDate)
+    if (i < 0) return
+    focused.current = focusDate
+    setCollection('satellite')
+    setIdx(i)
+    setFollow(false)
+    setPlaying(false)
+  }, [focusDate, s2Frames])
 
   const go = (i: number) => { setIdx(i); setFollow(false); setPlaying(false) }
   const switchCollection = (c: Collection) => {
@@ -281,7 +299,28 @@ export function AreaDetail({ area, onBack, onFrame, onFit }: Props) {
             <Button className="flex-1 text-xs" disabled={frames.length < 2} onClick={() => setExporting((x) => !x)} aria-pressed={exporting}>
               <Film size={13} /> Export
             </Button>
+            <Button className="flex-1 text-xs" onClick={() => { setPlaying(false); onPickPoint((p) => setAnnot({ lngLat: p, text: '' })) }}
+              title="Pin a note to a spot on the map for this date">
+              <MapPin size={13} /> Annotate
+            </Button>
           </div>
+          {annot && (
+            <form className="mt-2 space-y-2 rounded-md border border-amber-700/50 bg-amber-950/20 p-2" onSubmit={async (e) => {
+              e.preventDefault()
+              if (!annot.text.trim()) return
+              await addAnnotation({ investigationId: area.investigationId, areaId: area.id, lngLat: annot.lngLat, date: frame.date, sceneId: frame.id, text: annot.text })
+              setAnnot(null)
+            }}>
+              <div className="text-[11px] text-amber-200">Annotation for {fmtDate(frame.date, 'short')} at {annot.lngLat[1].toFixed(5)}, {annot.lngLat[0].toFixed(5)}</div>
+              <textarea autoFocus rows={2} value={annot.text} onChange={(e) => setAnnot({ ...annot, text: e.target.value })}
+                placeholder="e.g. New structure appears here" onKeyDown={(e) => e.key === 'Escape' && setAnnot(null)}
+                className="w-full rounded border border-line bg-panel p-2 text-xs outline-none focus:border-accent" />
+              <div className="flex gap-2">
+                <Button type="submit" variant="primary" className="flex-1 text-xs" disabled={!annot.text.trim()}>Save annotation</Button>
+                <Button type="button" className="text-xs" onClick={() => setAnnot(null)}>Cancel</Button>
+              </div>
+            </form>
+          )}
           {comparing && (
             <div className="mt-2 rounded-md bg-panel p-2 text-[11px] text-neutral-400">
               <label className="flex items-center gap-2">

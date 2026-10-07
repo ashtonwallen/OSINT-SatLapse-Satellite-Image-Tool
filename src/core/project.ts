@@ -71,6 +71,8 @@ export interface ImportOptions {
   example?: boolean
   /** Keep the stored id instead of minting a new one. */
   keepId?: boolean
+  /** Investigation to import the area into (v1 files have none). */
+  investigationId?: string
 }
 
 export async function importProject(storage: Storage, bytes: Uint8Array, opts: ImportOptions = {}): Promise<Area> {
@@ -92,6 +94,7 @@ export async function importProject(storage: Storage, bytes: Uint8Array, opts: I
     ...m.area,
     id,
     schemaVersion: SCHEMA_VERSION,
+    investigationId: opts.investigationId ?? m.area.investigationId ?? '',
     example: opts.example || undefined,
     sync: { ...m.area.sync, status: 'idle', unseen: 0 },
     updatedAt: new Date().toISOString(),

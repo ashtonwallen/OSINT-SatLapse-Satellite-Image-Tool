@@ -46,3 +46,6 @@ input[type="range"].range::-moz-range-thumb {
 .maplibregl-ctrl-attrib a { color: #d4d4d8 !important; }
 .maplibregl-ctrl-attrib-button { filter: invert(1); }
 .maplibregl-ctrl-scale { background: rgb(17 18 20 / .7); color: #d4d4d8; border-color: #71717a; }
+.satlapse-popup .maplibregl-popup-content { background: #18191c; color: #e7e7ea; border: 1px solid #2a2d32; border-radius: 8px; padding: 10px 12px; }
+.satlapse-popup .maplibregl-popup-tip { border-top-color: #18191c !important; border-bottom-color: #18191c !important; }
+.satlapse-popup .maplibregl-popup-close-button { color: #a1a1aa; }

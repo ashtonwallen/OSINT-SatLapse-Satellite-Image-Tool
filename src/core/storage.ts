@@ -1,9 +1,19 @@
 // Persistence interface. IndexedDB (src/storage/idb.ts) is the only browser
 // implementation today; a server could implement the same interface over a
 // database + object store without touching the engine.
-import type { Area, ChangeEvent, ImageKind, IndexRaster, SceneRecord } from './types'
+import type { Annotation, Area, ChangeEvent, ImageKind, IndexRaster, Investigation, SceneRecord } from './types'
 
 export interface Storage {
+  listInvestigations(): Promise<Investigation[]>
+  getInvestigation(id: string): Promise<Investigation | undefined>
+  putInvestigation(inv: Investigation): Promise<void>
+  /** Deletes the investigation, its annotations, and all of its areas' data. */
+  deleteInvestigation(id: string): Promise<void>
+
+  listAnnotations(investigationId: string): Promise<Annotation[]>
+  putAnnotation(a: Annotation): Promise<void>
+  deleteAnnotation(id: string): Promise<void>
+
   listAreas(): Promise<Area[]>
   getArea(id: string): Promise<Area | undefined>
   putArea(area: Area): Promise<void>
@@ -39,6 +49,19 @@ export class MemoryStorage implements Storage {
   images = new Map<string, Blob>()
   rasters = new Map<string, IndexRaster>()
   events = new Map<string, ChangeEvent[]>()
+  investigations = new Map<string, Investigation>()
+  annotations = new Map<string, Annotation>()
+  async listInvestigations() { return [...this.investigations.values()] }
+  async getInvestigation(id: string) { return this.investigations.get(id) }
+  async putInvestigation(i: Investigation) { this.investigations.set(i.id, structuredClone(i)) }
+  async deleteInvestigation(id: string) {
+    for (const a of [...this.areas.values()]) if (a.investigationId === id) await this.deleteArea(a.id)
+    for (const [k, a] of this.annotations) if (a.investigationId === id) this.annotations.delete(k)
+    this.investigations.delete(id)
+  }
+  async listAnnotations(investigationId: string) { return [...this.annotations.values()].filter((a) => a.investigationId === investigationId) }
+  async putAnnotation(a: Annotation) { this.annotations.set(a.id, structuredClone(a)) }
+  async deleteAnnotation(id: string) { this.annotations.delete(id) }
   async listAreas() { return [...this.areas.values()] }
   async getArea(id: string) { return this.areas.get(id) }
   async putArea(a: Area) { this.areas.set(a.id, structuredClone(a)) }

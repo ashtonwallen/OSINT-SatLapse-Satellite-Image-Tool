@@ -70,3 +70,22 @@ describe('share links', () => {
   })
   it('rejects garbage', () => expect(decodeShare('not-a-token')).toBeNull())
 })
+
+import { MemoryStorage } from '../storage'
+import { createArea as mkArea, createInvestigation } from '../area'
+
+describe('investigations', () => {
+  it('cascades deletes to areas, scenes and annotations', async () => {
+    const st = new MemoryStorage()
+    const inv = createInvestigation('Test')
+    await st.putInvestigation(inv)
+    const a = mkArea('A', squareAround([0, 10], 2), undefined, inv.id)
+    await st.putArea(a)
+    await st.putScenes([{ id: `${a.id}|2024-01-01`, areaId: a.id, date: '2024-01-01', datetime: '', status: 'processed', sources: [], cloudPct: 0, coveragePct: 100 }])
+    await st.putAnnotation({ id: 'n1', investigationId: inv.id, areaId: a.id, lngLat: [0, 10], date: '2024-01-01', text: 'x', author: 'user', createdAt: '' })
+    await st.deleteInvestigation(inv.id)
+    expect(await st.listAreas()).toEqual([])
+    expect(await st.listScenes(a.id)).toEqual([])
+    expect(await st.listAnnotations(inv.id)).toEqual([])
+  })
+})

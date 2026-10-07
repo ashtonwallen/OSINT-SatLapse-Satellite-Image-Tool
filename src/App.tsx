@@ -1,14 +1,16 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { bboxOf, type PolygonGeometry } from './core/geo'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { bboxOf, type LngLat, type PolygonGeometry } from './core/geo'
 import type { Area, AreaSettings } from './core/types'
 import { BRAND } from './config/brand'
 import { APP_CONFIG } from './config/app'
-import { createAndBackfill, trackAllAreas } from './app/actions'
-import { useAreas } from './app/hooks'
+import { createAndBackfill, ensureInvestigation, newInvestigation, trackAllAreas } from './app/actions'
+import { useAnnotations, useAreas, useInvestigations } from './app/hooks'
 import { AreaDetail, type FrameState } from './ui/AreaDetail'
 import { AreaList } from './ui/AreaList'
 import { CompareOverlay } from './ui/CompareOverlay'
+import { InvestigationList } from './ui/InvestigationList'
+import { InvestigationView } from './ui/InvestigationView'
 import { IconButton, Logo } from './ui/kit'
 import { MapHud } from './ui/MapHud'
 import { MapView, type DrawMode, type MapViewHandle } from './ui/MapView'
@@ -17,17 +19,34 @@ import { SearchBox } from './ui/SearchBox'
 
 const NO_FRAME: FrameState = { overlays: [], hud: null }
 const bbox = (a: Area) => bboxOf(a.geometry.coordinates[0]) as [number, number, number, number]
+const bboxAll = (as: Area[]) => bboxOf(as.flatMap((a) => a.geometry.coordinates[0])) as [number, number, number, number]
 
 export function App() {
   const { areas } = useAreas()
+  const investigations = useInvestigations()
   const map = useRef<MapViewHandle>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [invId, setInvId] = useState<string | null>(null)
+  const [areaId, setAreaId] = useState<string | null>(null)
+  const [focusDate, setFocusDate] = useState<string | undefined>()
   const [drawMode, setDrawMode] = useState<DrawMode>('none')
   const [pending, setPending] = useState<PolygonGeometry | null>(null)
   const [frame, setFrame] = useState<FrameState>(NO_FRAME)
+  const pointCb = useRef<((p: LngLat) => void) | null>(null)
   // On phones the panel is a bottom sheet that can be collapsed to free the map.
   const [collapsed, setCollapsed] = useState(false)
-  const selected = areas?.find((a) => a.id === selectedId) ?? null
+
+  const inv = investigations?.find((i) => i.id === invId) ?? null
+  const invAreas = useMemo(() => (areas ?? []).filter((a) => a.investigationId === invId), [areas, invId])
+  const area = invAreas.find((a) => a.id === areaId) ?? null
+  const annotations = useAnnotations(invId)
+
+  // With a single investigation, skip the list and open it directly.
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (autoOpened.current || !investigations) return
+    autoOpened.current = true
+    if (investigations.length === 1) setInvId(investigations[0].id)
+  }, [investigations])
 
   // Tracking: every time the app opens, check each area for newer scenes.
   const tracked = useRef(false)
@@ -37,11 +56,21 @@ export function App() {
     void trackAllAreas()
   }, [])
 
-  function openArea(id: string) {
-    setSelectedId(id)
-    setCollapsed(false)
+  function openInvestigation(id: string) {
+    setInvId(id)
+    setAreaId(null)
+    const own = (areas ?? []).filter((a) => a.investigationId === id)
+    if (own.length) map.current?.fitBounds(bboxAll(own), 13)
+  }
+
+  function openArea(id: string, date?: string) {
     const a = areas?.find((x) => x.id === id)
-    if (a) map.current?.fitBounds(bbox(a), 14)
+    if (!a) return
+    setInvId(a.investigationId)
+    setAreaId(id)
+    setFocusDate(date)
+    setCollapsed(false)
+    map.current?.fitBounds(bbox(a), 14)
   }
 
   function startDraw(mode: 'polygon' | 'rectangle') {
@@ -51,33 +80,43 @@ export function App() {
 
   async function create(name: string, settings: AreaSettings) {
     if (!pending) return
-    const area = await createAndBackfill(name, pending, settings)
+    const target = inv ?? (await ensureInvestigation())
+    const created = await createAndBackfill(target.id, name, pending, settings)
     setPending(null)
-    setSelectedId(area.id)
-    map.current?.fitBounds(bbox(area), 14)
+    setInvId(target.id)
+    setAreaId(created.id)
+    setFocusDate(undefined)
+    map.current?.fitBounds(bbox(created), 14)
   }
 
-  let panel: React.ReactNode
+  let panel: React.ReactNode = null
   if (pending) {
     panel = (
-      <NewAreaForm
-        geometry={pending}
-        maxAreaKm2={APP_CONFIG.maxAreaKm2}
-        onCreate={create}
-        onRedraw={() => { setPending(null); startDraw('polygon') }}
-        onCancel={() => setPending(null)}
-      />
+      <NewAreaForm geometry={pending} maxAreaKm2={APP_CONFIG.maxAreaKm2} onCreate={create}
+        onRedraw={() => { setPending(null); startDraw('polygon') }} onCancel={() => setPending(null)} />
     )
-  } else if (selected) {
+  } else if (area) {
     panel = (
-      <AreaDetail key={selected.id} area={selected} onBack={() => setSelectedId(null)} onFrame={setFrame}
-        onFit={() => map.current?.fitBounds(bbox(selected), 14)} />
+      <AreaDetail key={area.id} area={area} focusDate={focusDate} onBack={() => setAreaId(null)} onFrame={setFrame}
+        onFit={() => map.current?.fitBounds(bbox(area), 14)}
+        onPickPoint={(cb) => { pointCb.current = cb; setDrawMode('point') }} />
     )
-  } else {
-    panel = areas && <AreaList areas={areas} onOpen={(a) => openArea(a.id)} onDraw={startDraw} />
+  } else if (inv) {
+    panel = (
+      <InvestigationView investigation={inv} areas={invAreas} annotations={annotations}
+        onBack={() => setInvId(null)} onOpenArea={openArea} onDraw={startDraw}
+        onFlyTo={(p) => map.current?.fitBounds([p[0] - 0.01, p[1] - 0.01, p[0] + 0.01, p[1] + 0.01], 15)} />
+    )
+  } else if (investigations && areas) {
+    panel = (
+      <InvestigationList investigations={investigations} areas={areas} onOpen={openInvestigation}
+        onCreate={async (n) => openInvestigation((await newInvestigation(n)).id)} />
+    )
   }
+  // First run: no investigations yet. Drawing an area creates one.
+  const firstRun = !!investigations && investigations.length === 0 && !pending
 
-  const hud = selected ? frame.hud : null
+  const hud = area ? frame.hud : null
   return (
     <div className="flex h-dvh flex-col-reverse bg-[#0a0a0b] text-neutral-100 md:flex-row">
       <aside className={`flex w-full shrink-0 flex-col border-t border-line bg-panel md:max-h-none md:w-[380px] md:border-r md:border-t-0 ${collapsed ? 'max-h-[64px]' : 'max-h-[55dvh]'}`}>
@@ -94,24 +133,30 @@ export function App() {
             <SearchBox onPick={(p) => map.current?.fitBounds(p.bbox ?? [p.center[0] - 0.05, p.center[1] - 0.05, p.center[0] + 0.05, p.center[1] + 0.05], 13)} />
           )}
         </header>
-        {!collapsed && <div className="scroll-thin flex-1 overflow-y-auto p-4">{panel}</div>}
+        {!collapsed && <div className="scroll-thin flex-1 overflow-y-auto p-4">{firstRun ? <FirstRun onDraw={startDraw} /> : panel}</div>}
       </aside>
       <main className="relative min-h-0 flex-1">
         <MapView
           ref={map}
-          areas={areas ?? []}
-          selectedId={selectedId}
-          onSelectArea={openArea}
+          areas={inv ? invAreas : areas ?? []}
+          selectedId={areaId}
+          onSelectArea={(id) => openArea(id)}
           drawMode={drawMode}
           maxAreaKm2={APP_CONFIG.maxAreaKm2}
-          onDrawn={(poly) => { setDrawMode('none'); setSelectedId(null); setPending(poly); setCollapsed(false) }}
-          onDrawCancel={() => { setDrawMode('none'); setCollapsed(false) }}
-          overlays={selected ? frame.overlays : []}
+          onDrawn={(poly) => { setDrawMode('none'); setAreaId(null); setPending(poly); setCollapsed(false) }}
+          onDrawCancel={() => { setDrawMode('none'); pointCb.current = null; setCollapsed(false) }}
+          onPoint={(p) => { setDrawMode('none'); pointCb.current?.(p); pointCb.current = null }}
+          overlays={area ? frame.overlays : []}
           pending={pending}
+          annotations={annotations}
         />
         {hud && drawMode === 'none' && <MapHud hud={hud} />}
-        {selected && frame.compare && map.current?.getMap() && <CompareOverlay map={map.current.getMap()!} state={frame.compare} />}
+        {area && frame.compare && map.current?.getMap() && <CompareOverlay map={map.current.getMap()!} state={frame.compare} />}
       </main>
     </div>
   )
+}
+
+function FirstRun({ onDraw }: { onDraw(m: 'polygon' | 'rectangle'): void }) {
+  return <AreaList areas={[]} onOpen={() => {}} onDraw={onDraw} />
 }

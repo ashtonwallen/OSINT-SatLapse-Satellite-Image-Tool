@@ -2,7 +2,8 @@
 // Bump SCHEMA_VERSION and add a migration in storage when shapes change.
 import type { Grid, PolygonGeometry } from './geo'
 
-export const SCHEMA_VERSION = 1
+// v1: areas at top level. v2: investigations contain areas, notes, annotations.
+export const SCHEMA_VERSION = 2
 
 export type HistoryDepth = '1y' | '3y' | 'all'
 export type Sampling = 'all' | 'month' | 'quarter'
@@ -27,9 +28,38 @@ export interface AreaSync {
   error?: string
 }
 
+/** Top-level container: one or more areas, notes, annotations, event log. */
+export interface Investigation {
+  id: string
+  schemaVersion: number
+  name: string
+  /** Free-form Markdown notes. */
+  notes: string
+  /** AI provider/model chosen for this investigation (no keys here). */
+  ai?: { provider: string; model: string }
+  createdAt: string
+  updatedAt: string
+}
+
+/** A user (or user-approved AI) note pinned to a place and a scene date. */
+export interface Annotation {
+  id: string
+  investigationId: string
+  areaId?: string
+  lngLat: [number, number]
+  /** Scene date the observation refers to (YYYY-MM-DD). */
+  date: string
+  sceneId?: string
+  text: string
+  author: 'user' | 'ai'
+  createdAt: string
+}
+
 export interface Area {
   id: string
   schemaVersion: number
+  /** Owning investigation (schema v2+). */
+  investigationId: string
   name: string
   geometry: PolygonGeometry
   areaKm2: number

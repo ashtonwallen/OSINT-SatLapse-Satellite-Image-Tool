@@ -1,11 +1,11 @@
-import { Map as MlMap, NavigationControl, ScaleControl, type GeoJSONSource, type ImageSource, setWorkerUrl, type LngLatBoundsLike, type MapLayerMouseEvent, type MapMouseEvent } from 'maplibre-gl'
+import { Map as MlMap, NavigationControl, Popup, ScaleControl, type GeoJSONSource, type ImageSource, setWorkerUrl, type LngLatBoundsLike, type MapLayerMouseEvent, type MapMouseEvent } from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ringAreaKm2, type LngLat, type PolygonGeometry } from '../core/geo'
-import type { Area } from '../core/types'
+import type { Annotation, Area } from '../core/types'
 
-export type DrawMode = 'none' | 'polygon' | 'rectangle'
+export type DrawMode = 'none' | 'polygon' | 'rectangle' | 'point'
 
 export interface FrameOverlay {
   url: string
@@ -31,6 +31,9 @@ interface Props {
   overlays: FrameOverlay[]
   /** Finished drawing awaiting a name; shown until created or cancelled. */
   pending: PolygonGeometry | null
+  annotations: Annotation[]
+  /** Called in 'point' mode with the clicked location. */
+  onPoint?(p: LngLat): void
 }
 
 // MapLibre 6 runs tile parsing in a module worker that must be bundled explicitly.
@@ -90,6 +93,10 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
         id: 'areas-line', type: 'line', source: 'areas',
         paint: { 'line-color': ['case', ['get', 'selected'], '#fbbf24', '#38bdf8'], 'line-width': ['case', ['get', 'selected'], 2.5, 1.5] },
       })
+      map.addSource('annotations', { type: 'geojson', data: EMPTY })
+      map.addLayer({ id: 'annotations', type: 'circle', source: 'annotations', paint: {
+        'circle-radius': 6, 'circle-color': '#fcd34d', 'circle-stroke-color': '#111214', 'circle-stroke-width': 2,
+      } })
       map.addSource('pending', { type: 'geojson', data: EMPTY })
       map.addLayer({ id: 'pending-fill', type: 'fill', source: 'pending', paint: { 'fill-color': '#fbbf24', 'fill-opacity': 0.15 } })
       map.addLayer({ id: 'pending-line', type: 'line', source: 'pending', paint: { 'line-color': '#fbbf24', 'line-width': 2.5 } })
@@ -104,12 +111,38 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
       const id = e.features?.[0]?.properties?.id
       if (id) propsRef.current.onSelectArea(String(id))
     })
+    map.on('click', 'annotations', (e: MapLayerMouseEvent) => {
+      if (propsRef.current.drawMode !== 'none') return
+      const f = e.features?.[0]
+      if (!f) return
+      // Build the popup with textContent so annotation text can't inject markup.
+      const el = document.createElement('div')
+      el.className = 'max-w-56 text-xs'
+      const d = document.createElement('div')
+      d.className = 'mb-1 font-mono text-[10px] text-neutral-500'
+      d.textContent = String(f.properties?.date ?? '')
+      const t = document.createElement('div')
+      t.textContent = String(f.properties?.text ?? '')
+      el.append(d, t)
+      new Popup({ closeButton: true, maxWidth: '240px', className: 'satlapse-popup' })
+        .setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]).setDOMContent(el).addTo(map)
+    })
+    map.on('mouseenter', 'annotations', () => { map.getCanvas().style.cursor = 'pointer' })
+    map.on('mouseleave', 'annotations', () => { if (propsRef.current.drawMode === 'none') map.getCanvas().style.cursor = '' })
     map.on('mouseenter', 'areas-fill', () => { if (propsRef.current.drawMode === 'none') map.getCanvas().style.cursor = 'pointer' })
     map.on('mouseleave', 'areas-fill', () => { if (propsRef.current.drawMode === 'none') map.getCanvas().style.cursor = '' })
     mapRef.current = map
     if (import.meta.env.DEV) (window as unknown as { __map: MlMap }).__map = map
     return () => map.remove()
   }, [])
+
+  useEffect(() => {
+    const src = mapRef.current?.getSource('annotations') as GeoJSONSource | undefined
+    if (!ready || !src) return
+    src.setData({ type: 'FeatureCollection', features: props.annotations.map((a) => ({
+      type: 'Feature', geometry: { type: 'Point', coordinates: a.lngLat }, properties: { id: a.id, text: a.text, date: a.date },
+    })) })
+  }, [ready, props.annotations])
 
   useEffect(() => {
     const src = mapRef.current?.getSource('pending') as GeoJSONSource | undefined
@@ -198,6 +231,7 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
     const ll = (e: MapMouseEvent): LngLat => [e.lngLat.lng, e.lngLat.lat]
 
     const onClick = (e: MapMouseEvent) => {
+      if (mode === 'point') { propsRef.current.onPoint?.(ll(e)); return }
       if (mode !== 'polygon') return
       const { pts } = draft.current
       // Clicking the first vertex closes the polygon.
@@ -275,6 +309,7 @@ export const MapView = forwardRef<MapViewHandle, Props>(function MapView(props, 
         <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-lg bg-black/80 px-3 py-2 text-center text-xs text-neutral-200 shadow-lg">
           {props.drawMode === 'polygon'
             ? 'Click to add points · click the first point, double-click or press Enter to finish · Backspace undoes · Esc cancels'
+            : props.drawMode === 'point' ? 'Click the map where your annotation should go · Esc cancels'
             : 'Drag to draw a rectangle · Esc cancels'}
           {liveKm2 != null && (
             <div className={tooBig ? 'mt-1 font-semibold text-red-400' : 'mt-1 text-amber-300'}>

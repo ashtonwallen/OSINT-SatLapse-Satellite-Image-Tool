@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SyncProgress } from '../core/engine'
-import type { Area, ChangeEvent, ImageKind, SceneRecord } from '../core/types'
+import type { Annotation, Area, ChangeEvent, ImageKind, Investigation, SceneRecord } from '../core/types'
 import { storage } from '../storage/idb'
 import { localChanges } from './actions'
 import { engine } from './engineClient'
@@ -90,4 +90,45 @@ export function useImageCache(areaId: string | null): ImageUrlCache {
     return () => c.clear()
   }, [areaId])
   return cache.current
+}
+
+/** Re-run `load` after UI-side writes. */
+function useLocalRefresh(load: () => void) {
+  useEffect(() => {
+    localChanges.addEventListener('change', load)
+    return () => localChanges.removeEventListener('change', load)
+  }, [load])
+}
+
+export function useInvestigations() {
+  const [items, setItems] = useState<Investigation[] | null>(null)
+  const load = useCallback(() => {
+    void storage.listInvestigations().then((a) => setItems(a.sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))))
+  }, [])
+  useEffect(load, [load])
+  useLocalRefresh(load)
+  return items
+}
+
+export function useAnnotations(investigationId: string | null) {
+  const [items, setItems] = useState<Annotation[]>([])
+  const load = useCallback(() => {
+    if (investigationId) void storage.listAnnotations(investigationId).then(setItems)
+    else setItems([])
+  }, [investigationId])
+  useEffect(load, [load])
+  useLocalRefresh(load)
+  return items
+}
+
+/** Change events across several areas (for an investigation's timeline). */
+export function useEventsFor(areaIds: string[]) {
+  const key = areaIds.join(',')
+  const [items, setItems] = useState<ChangeEvent[]>([])
+  const load = useCallback(() => {
+    void Promise.all(key ? key.split(',').map((id) => storage.listEvents(id)) : []).then((r) => setItems(r.flat()))
+  }, [key])
+  useEffect(load, [load])
+  useEngineRefresh((id) => key.split(',').includes(id), load)
+  return items
 }

@@ -1,5 +1,5 @@
 import { bboxOf, gridForPolygon, ringAreaKm2, utmEpsgFor, type LngLat, type PolygonGeometry } from './geo'
-import { SCHEMA_VERSION, type Area, type AreaSettings } from './types'
+import { SCHEMA_VERSION, type Area, type AreaSettings, type Investigation } from './types'
 
 /** Grids are at least this wide/tall so tiny areas are shown in context. */
 export const CONTEXT_MIN_SIDE_M = 2000
@@ -36,7 +36,12 @@ export function newId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-export function createArea(name: string, geometry: PolygonGeometry, settings: AreaSettings = DEFAULT_SETTINGS): Area {
+export function createInvestigation(name: string): Investigation {
+  const now = new Date().toISOString()
+  return { id: newId(), schemaVersion: SCHEMA_VERSION, name: name.trim() || 'Untitled investigation', notes: '', createdAt: now, updatedAt: now }
+}
+
+export function createArea(name: string, geometry: PolygonGeometry, settings: AreaSettings = DEFAULT_SETTINGS, investigationId = ''): Area {
   const areaKm2 = ringAreaKm2(geometry.coordinates[0])
   const epsg = utmEpsgFor(polygonCentroid(geometry))
   const res = resolutionFor(areaKm2)
@@ -44,6 +49,7 @@ export function createArea(name: string, geometry: PolygonGeometry, settings: Ar
   return {
     id: newId(),
     schemaVersion: SCHEMA_VERSION,
+    investigationId,
     name: name.trim() || 'Untitled area',
     geometry,
     areaKm2,
