@@ -165,3 +165,26 @@ Screening with SCL alone is cheap: 83 scenes cost about 1 MB and 11 s. Full proc
 - 10 min and ~1 GB in Node, with similar cost expected in the browser.
 
 The form warns about this and recommends quarterly sampling for this range.
+
+## Addendum (Phase 3.8): two data-quality corrections found while building the example
+
+Both were caught by **looking at rendered frames**, not by tests.
+
+**1. Legacy Earth Search offset rule, corrected again.** The Phase 2 fix zeroed the offset only when `earthsearch:boa_offset_applied` was `true`. Lake Oroville's 13 July 2022 frame (flag `false`) still rendered nearly black and read 4% water. Raw DN comparison with Planetary Computer for the same acquisitions:
+
+| Date | Legacy flag | Legacy green DN (median) | PC green DN (median) |
+|---|---|---|---|
+| 2022-04-24 | `true` | 395 | 1,400 |
+| 2022-07-13 | `false` | 504 | 1,512 |
+
+In both cases the legacy pixels have the +1000 offset already removed. The flag is unreliable. **Rule now: legacy-collection pixels never get the offset** (Collection 1 and PC still do, per their metadata). A unit test covers both flag values.
+
+**2. Wildfire smoke passes the cloud mask.** The 1 October 2020 frame is uniformly hazed by the 2020 California fire smoke. SCL classified it as 0% cloud, and it produced a false "45 km² vegetation loss, high confidence" event. The L2A aerosol band doesn't separate it either: AOT was 0.24 under smoke versus 0.11–0.16 on clear dates, because the retrieval saturates. The blue/red reflectance ratio over clear vegetation and soil does:
+
+| Date | Conditions | Blue/red (median, land) |
+|---|---|---|
+| 2020-07-03, 2020-10-16, 2021–2024 summers | clear | 0.49–0.64 |
+| 2020-09-26 | smoke | 0.88 |
+| 2020-10-01 | heavy smoke | 1.08 |
+
+Scenes far above **their area's own** median ratio (more than max(0.15, 4×MAD) above it) are labelled "possible smoke or haze" and excluded from flagged changes and seasonal baselines. They still appear in the timeline.

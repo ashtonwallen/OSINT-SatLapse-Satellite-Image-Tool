@@ -3,7 +3,8 @@
 // Usage: npx jiti scripts/sync-node.ts <name> <minLng,minLat,maxLng,maxLat> <1y|3y|all> <all|month|quarter> <out.satlapse> [maxCloud]
 import { writeFileSync } from 'node:fs'
 import sharp from 'sharp'
-import { createArea, createInvestigation } from '../src/core/area'
+import { CONTEXT_MIN_SIDE_M, createArea, createInvestigation } from '../src/core/area'
+import { gridForPolygon } from '../src/core/geo'
 import { syncArea } from '../src/core/engine'
 import { exportProjectFile } from '../src/core/project'
 import { MemoryStorage, type ImageEncoder } from '../src/core/storage'
@@ -12,7 +13,7 @@ import type { HistoryDepth, Sampling } from '../src/core/types'
 const encoder: ImageEncoder = {
   async encode(rgba, width, height, kind) {
     const img = sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), { raw: { width, height, channels: 4 } })
-    const buf = kind === 'overlay' ? await img.png({ compressionLevel: 9, palette: true }).toBuffer() : await img.webp({ quality: 82, alphaQuality: 100 }).toBuffer()
+    const buf = kind === 'overlay' ? await img.png({ compressionLevel: 9, palette: true }).toBuffer() : await img.webp({ quality: Number(process.env.WEBP_Q ?? 82), alphaQuality: 90 }).toBuffer()
     return new Blob([new Uint8Array(buf)], { type: kind === 'overlay' ? 'image/png' : 'image/webp' })
   },
 }
@@ -25,6 +26,8 @@ const area = createArea(name, { type: 'Polygon', coordinates: [[[x0, y0], [x1, y
 }, project.id)
 console.log(`${area.name}: ${area.areaKm2.toFixed(1)} km², grid ${area.grid.width}x${area.grid.height} @ ${area.grid.res} m, EPSG:${area.grid.epsg}`)
 const storage = new MemoryStorage()
+// RES=20 forces a coarser grid (smaller bundled example files).
+if (process.env.RES) { const r = Number(process.env.RES); area.grid = gridForPolygon(area.geometry, area.grid.epsg, r, Math.max(20, r), CONTEXT_MIN_SIDE_M) }
 await storage.putInvestigation(project)
 await storage.putArea(area)
 
@@ -36,6 +39,7 @@ const t0 = Date.now()
 let phaseStart = t0, lastPhase = ''
 const res = await syncArea(area.id, storage, encoder, {
   mode: 'backfill',
+  skipAerial: !!process.env.SKIP_NAIP,
   onProgress: (p) => {
     if (p.phase !== lastPhase) {
       if (lastPhase) console.log(`  ${lastPhase} took ${((Date.now() - phaseStart) / 1000).toFixed(1)} s, cumulative ${(bytes / 1e6).toFixed(0)} MB / ${requests} req`)

@@ -59,6 +59,12 @@ describe('seasonal detection', () => {
     expect(ev.find((e) => e.kind === 'veg_loss')?.confidence).toBe('medium')
   })
 
+  it('ignores a smoke-hazed scene instead of flagging it', () => {
+    const scenes = series(5, (date, _i, b) => { if (date === '2022-09-15') { b.veg -= 40; b.built += 25 } })
+    scenes.forEach((s) => { s.stats!.haze = s.date === '2022-09-15' ? 1.05 : 0.55 + (Number(s.date.slice(5, 7)) % 3) * 0.02 })
+    expect(detectEvents('a', 10, scenes)).toEqual([])
+  })
+
   it('wraps seasons across the new year', () => {
     expect(seasonalDistance('2021-12-28', '2023-01-03')).toBe(6)
   })

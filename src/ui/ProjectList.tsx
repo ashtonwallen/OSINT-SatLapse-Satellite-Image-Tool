@@ -6,13 +6,14 @@ import type { Area, Investigation } from '../core/types'
 import { Button } from './kit'
 
 interface Props {
+  onExample?(): Promise<void>
   investigations: Investigation[]
   areas: Area[]
   onOpen(id: string): void
   onCreate(name: string): void
 }
 
-export function ProjectList({ investigations, areas, onOpen, onCreate }: Props) {
+export function ProjectList({ investigations, areas, onOpen, onCreate, onExample }: Props) {
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
@@ -34,6 +35,11 @@ export function ProjectList({ investigations, areas, onOpen, onCreate }: Props) 
         }} />
       </div>
       {importError && <p className="text-xs text-red-400">{importError}</p>}
+      {onExample && !areas.some((a) => a.example) && (
+        <button type="button" onClick={() => void onExample()} className="w-full rounded-md border border-dashed border-line px-3 py-2 text-left text-xs text-neutral-400 hover:border-accent hover:text-neutral-200">
+          ▶ Try an example: Lake Oroville, California (pre-processed, loads instantly)
+        </button>
+      )}
       {naming && (
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); onCreate(name); setName(''); setNaming(false) }}>
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Reservoir drawdown 2021–2023"

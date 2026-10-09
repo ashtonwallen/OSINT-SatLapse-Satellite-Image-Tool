@@ -54,7 +54,7 @@ function Methodology() {
       <section className="space-y-3">
         <H2 id="clouds">Cloud masking</H2>
         <p>Scene-level cloud figures describe a whole ~110 km tile and are almost useless for a small area. Instead, {BRAND.name} reads each scene's per-pixel classification (Sentinel-2's Scene Classification Layer; Landsat's QA_PIXEL bits) and computes cloud cover <i>over your polygon only</i>. Cloud, cirrus and cloud shadow pixels are masked from every statistic. A scene is used if at least 90% of the polygon was imaged and cloud is below your chosen limit (default 20%).</p>
-        <p>Classification layers miss some thin haze and smoke, and occasionally flag bright surfaces as cloud. Smoke from large wildfires can therefore leak into statistics.</p>
+        <p><b>Smoke and haze.</b> Classification layers often miss smoke (for example the September 2020 California wildfire smoke was classified as clear), and the aerosol estimate saturates in thick smoke. So {BRAND.name} also measures each scene's blue/red brightness ratio over clear vegetation and soil. Haze scatters blue light, pushing the ratio from a typical ~0.5–0.65 to ~0.9–1.1. A scene far above <i>that area's own</i> usual ratio is labelled "possible smoke or haze", kept in the timeline, and excluded from flagged changes and seasonal baselines. Using the area's own history avoids false alarms over naturally grey surfaces like cities.</p>
       </section>
 
       <section className="space-y-3">

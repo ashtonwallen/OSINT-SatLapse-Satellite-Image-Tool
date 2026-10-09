@@ -1,5 +1,5 @@
 // Spectral indices, land-cover shares and per-pixel change between scenes.
-import { classifyScl, meanOver, normalizedDifference, NDBI_RAMP, NDVI_RAMP, NDWI_RAMP, renderIndex, renderTrueColor, type SceneBands } from './scene'
+import { classifyScl, meanOver, SCL, normalizedDifference, NDBI_RAMP, NDVI_RAMP, NDWI_RAMP, renderIndex, renderTrueColor, type SceneBands } from './scene'
 import { INVALID, type ChangeStats, type SceneStats } from './types'
 
 // Classification thresholds. Deliberately simple and documented on the
@@ -53,6 +53,7 @@ export function computeProducts(b: SceneBands, mask: Uint8Array, viewMask: Uint8
   const pct = (x: number) => (clear ? (100 * x) / clear : 0)
   return {
     stats: {
+      haze: hazeRatio(b, mask),
       vegPct: pct(veg),
       waterPct: pct(water),
       builtPct: pct(built),
@@ -68,6 +69,24 @@ export function computeProducts(b: SceneBands, mask: Uint8Array, viewMask: Uint8
     },
     raster: { ndvi: rNdvi, ndwi: rNdwi, ndbi: rNdbi },
   }
+}
+
+/** Median blue / median red over clear vegetation and soil pixels (SCL 4/5),
+ *  sampled for speed. Typically ~0.5–0.65; smoke and haze push it to ~0.9–1.1. */
+export function hazeRatio(b: SceneBands, mask: Uint8Array): number | null {
+  const blues: number[] = [], reds: number[] = []
+  const step = Math.max(1, Math.floor(mask.length / 40000))
+  for (let i = 0; i < mask.length; i += step) {
+    const s = b.scl[i]
+    if (!mask[i] || (s !== SCL.VEGETATION && s !== SCL.NOT_VEGETATED)) continue
+    const bl = b.refl.blue[i], rd = b.refl.red[i]
+    if (Number.isNaN(bl) || Number.isNaN(rd)) continue
+    blues.push(bl); reds.push(rd)
+  }
+  if (blues.length < 50) return null
+  const med = (a: number[]) => a.sort((x, y) => x - y)[a.length >> 1]
+  const r = med(reds)
+  return r > 0.005 ? med(blues) / r : null
 }
 
 /** 0 other, 1 vegetation, 2 water, 3 built-up/bare. Water wins over the rest. */

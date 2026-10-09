@@ -35,6 +35,8 @@ export interface SyncOptions {
   sources?: SourceId[]
   screenConcurrency?: number
   processConcurrency?: number
+  /** Skip the high-resolution aerial (NAIP) pass. */
+  skipAerial?: boolean
   onProgress?: (p: SyncProgress) => void
   /** Called after each scene record is stored (processed or not). */
   onScene?: (s: SceneRecord) => void
@@ -271,7 +273,7 @@ export async function syncArea(areaId: string, storage: Storage, encoder: ImageE
 
   // 5. High-resolution aerial imagery (US only). Independent of Sentinel-2,
   //    so a failure here is reported as a warning rather than failing the sync.
-  try {
+  if (!opts.skipAerial) try {
     await syncNaip(area, storage, encoder, {
       signal,
       onScene: (r) => opts.onScene?.(r),

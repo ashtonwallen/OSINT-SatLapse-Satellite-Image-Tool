@@ -57,6 +57,8 @@ describe('stac normalization', () => {
   })
   it('does not double-apply the BOA offset on legacy Earth Search items', () => {
     expect(SOURCES['earth-search'].normalize(item({ 'earthsearch:boa_offset_applied': true })).bands.red.offset).toBe(0)
+    // The flag is unreliable: legacy pixels never carry the offset (verified against PC raw DNs).
+    expect(SOURCES['earth-search'].normalize(item({ 'earthsearch:boa_offset_applied': false })).bands.red.offset).toBe(0)
     expect(SOURCES['earth-search-c1'].normalize(item({})).bands.red.offset).toBe(-0.1)
   })
 })
@@ -122,5 +124,25 @@ describe('project sharing and files', () => {
     const [n2] = await st2.listAnnotations(p2.id)
     expect(n2.areaId).toBe(a2.id)
     expect(n2.sceneId).toBe(`${a2.id}|2024-01-01`)
+  })
+})
+
+import { shouldNotify, toAlert } from '../alerts'
+import { can } from '../../config/entitlements'
+
+describe('paid-tier interfaces', () => {
+  it('turns detector events into alert payloads with a deep link', () => {
+    const a = mkArea('Site', squareAround([10, 50], 2), undefined, 'p')
+    const e = { id: 'x', areaId: a.id, sceneId: `${a.id}|2024-05-01`, date: '2024-05-01', previousDate: '2024-04-01', kind: 'veg_loss' as const, metric: 'vegPct' as const,
+      method: 'seasonal' as const, confidence: 'high' as const, observed: 20, expected: 50, reference: { years: [2021, 2022, 2023], sceneIds: [] }, km2: 1, severity: 1, sources: [], title: 'Loss', description: 'd' }
+    const alert = toAlert(e, a, 'https://example.org/')
+    expect(alert.url).toBe(`https://example.org/#area=${a.id}&date=2024-05-01`)
+    expect(alert.centre.lat).toBeCloseTo(50, 3)
+    expect(shouldNotify(e, { id: 's', channel: 'email', address: 'x', minConfidence: 'medium' })).toBe(true)
+    expect(shouldNotify({ ...e, confidence: 'low' }, { id: 's', channel: 'email', address: 'x', minConfidence: 'medium' })).toBe(false)
+  })
+  it('keeps every current feature free and planned ones unavailable', () => {
+    expect(can('aiByoKey')).toBe(true)
+    expect(can('alerts')).toBe(false)
   })
 })

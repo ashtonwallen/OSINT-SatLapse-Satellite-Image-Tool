@@ -4,6 +4,7 @@
 // are never embedded here; models request them through tools.
 import type { Annotation, Area, ChangeEvent, Investigation, SceneRecord } from '../core/types'
 import { polygonCentroid } from '../core/area'
+import { hazyScenes } from '../core/detect'
 
 export interface ProjectData {
   project: Investigation
@@ -44,13 +45,14 @@ export function describeProject(d: ProjectData, opts: { maxRowsPerArea?: number 
       lines.push(`- ${optical.length} clear satellite scenes from ${optical[0].date} to ${optical.at(-1)!.date} (${sensors}); sampling: ${area.settings.sampling === 'all' ? 'every clear scene' : `clearest per ${area.settings.sampling}`}.`)
     }
     if (aerial.length) lines.push(`- High-res aerial (NAIP) years: ${aerial.map((s) => `${s.date} (${s.gsd} m)`).join(', ')}.`)
+    const hazy = hazyScenes(optical)
     const keep = new Set(events.map((e) => e.date))
     const rows = thin(optical, opts.maxRowsPerArea ?? 60, keep)
     if (rows.length) {
       lines.push('')
       lines.push('Land cover over time (% of clear pixels; "built" includes bare soil):')
-      lines.push('date | sensor | vegetation | water | built | cloud%')
-      for (const s of rows) lines.push(`${s.date} | ${s.sensor === 'landsat' ? 'L' : 'S2'} | ${r1(s.stats!.vegPct)} | ${r1(s.stats!.waterPct)} | ${r1(s.stats!.builtPct)} | ${r1(s.cloudPct)}`)
+      lines.push('date | sensor | vegetation | water | built | cloud% | note')
+      for (const s of rows) lines.push(`${s.date} | ${s.sensor === 'landsat' ? 'L' : 'S2'} | ${r1(s.stats!.vegPct)} | ${r1(s.stats!.waterPct)} | ${r1(s.stats!.builtPct)} | ${r1(s.cloudPct)} | ${hazy.has(s.id) ? 'possible smoke/haze; values unreliable' : ''}`)
       if (rows.length < optical.length) lines.push(`(${optical.length - rows.length} more rows omitted; use the get_stats tool for full detail.)`)
     }
     const conf = events.filter((e) => e.confidence !== 'low')

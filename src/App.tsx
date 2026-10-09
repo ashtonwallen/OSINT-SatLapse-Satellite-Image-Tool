@@ -4,8 +4,9 @@ import { bboxOf, type LngLat, type PolygonGeometry } from './core/geo'
 import type { Area, AreaSettings } from './core/types'
 import { BRAND } from './config/brand'
 import { APP_CONFIG } from './config/app'
-import { createAndBackfill, createFromShare, ensureInvestigation, newInvestigation, trackAllAreas } from './app/actions'
+import { createAndBackfill, createFromShare, ensureInvestigation, loadExample, newInvestigation, trackAllAreas } from './app/actions'
 import { readShareHash, type SharedProject } from './core/share'
+import { storage } from './storage/idb'
 import { SharedImport } from './ui/SharedImport'
 import { useAnnotations, useAreas, useInvestigations } from './app/hooks'
 import { AreaDetail, type FrameState } from './ui/AreaDetail'
@@ -61,6 +62,18 @@ export function App() {
     if (investigations.length === 1) openInvestigation(investigations[0].id)
   }, [investigations, areas])
 
+  // Deep links (#area=<id>&date=YYYY-MM-DD), e.g. from future alert emails.
+  const deepLinked = useRef(false)
+  useEffect(() => {
+    if (deepLinked.current || !areas) return
+    const m = /[#&]area=([^&]+)(?:&date=(\d{4}-\d{2}-\d{2}))?/.exec(location.hash)
+    if (!m) return
+    deepLinked.current = true
+    autoOpened.current = true
+    openArea(decodeURIComponent(m[1]), m[2])
+    history.replaceState(null, '', location.pathname + location.search)
+  }, [areas])
+
   // Tracking: every time the app opens, check each area for newer scenes.
   const tracked = useRef(false)
   useEffect(() => {
@@ -84,6 +97,16 @@ export function App() {
     setFocusDate(date)
     setCollapsed(false)
     map.current?.fitBounds(bbox(a), 14)
+  }
+
+  async function openExample() {
+    const p = await loadExample()
+    const first = (await storage.listAreas()).find((a) => a.investigationId === p.id)
+    setInvId(p.id)
+    setAreaId(first?.id ?? null)
+    setFocusDate(undefined)
+    setCollapsed(false)
+    if (first) map.current?.fitBounds(bbox(first), 12)
   }
 
   function startDraw(mode: 'polygon' | 'rectangle') {
@@ -127,7 +150,7 @@ export function App() {
     )
   } else if (investigations && areas) {
     panel = (
-      <ProjectList investigations={investigations} areas={areas} onOpen={openInvestigation}
+      <ProjectList investigations={investigations} areas={areas} onOpen={openInvestigation} onExample={openExample}
         onCreate={async (n) => openInvestigation((await newInvestigation(n)).id)} />
     )
   }
@@ -151,7 +174,7 @@ export function App() {
             <SearchBox onPick={(p) => map.current?.fitBounds(p.bbox ?? [p.center[0] - 0.05, p.center[1] - 0.05, p.center[0] + 0.05, p.center[1] + 0.05], 13)} />
           )}
         </header>
-        {!collapsed && <div className="scroll-thin flex-1 overflow-y-auto p-4">{firstRun ? <FirstRun onDraw={startDraw} /> : panel}</div>}
+        {!collapsed && <div className="scroll-thin flex-1 overflow-y-auto p-4">{firstRun ? <FirstRun onDraw={startDraw} onExample={openExample} /> : panel}</div>}
       </aside>
       <main className="relative min-h-0 flex-1">
         <MapView
@@ -175,6 +198,6 @@ export function App() {
   )
 }
 
-function FirstRun({ onDraw }: { onDraw(m: 'polygon' | 'rectangle'): void }) {
-  return <AreaList areas={[]} onOpen={() => {}} onDraw={onDraw} />
+function FirstRun({ onDraw, onExample }: { onDraw(m: 'polygon' | 'rectangle'): void; onExample(): Promise<void> }) {
+  return <AreaList areas={[]} onOpen={() => {}} onDraw={onDraw} onExample={onExample} />
 }

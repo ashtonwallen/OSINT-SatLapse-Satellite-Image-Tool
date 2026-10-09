@@ -133,10 +133,25 @@ export function fmtDay(d: string): string {
 const fmtKm2 = (km2: number) => (km2 < 0.1 ? `${Math.max(1, Math.round(km2 * 100))} ha` : `${km2 < 10 ? km2.toFixed(1) : Math.round(km2)} km²`)
 const yearsText = (ys: number[]) => (ys.length > 3 ? `${ys[0]}–${ys[ys.length - 1]}` : ys.join(', '))
 
+/**
+ * Scenes that look hazy or smoky compared with this area's own history
+ * (blue/red ratio far above its norm). Relative, so naturally grey surfaces
+ * like cities don't trigger it. Hazy scenes stay in the timeline but are
+ * excluded from flagged changes and from seasonal baselines.
+ */
+export function hazyScenes(scenes: SceneRecord[]): Set<string> {
+  const vals = scenes.map((s) => s.stats?.haze).filter((v): v is number => typeof v === 'number')
+  if (vals.length < 4) return new Set()
+  const med = median(vals)
+  const mad = median(vals.map((v) => Math.abs(v - med))) * 1.4826
+  const cut = med + Math.max(0.15, 4 * mad)
+  return new Set(scenes.filter((s) => typeof s.stats?.haze === 'number' && s.stats.haze > cut).map((s) => s.id))
+}
+
 export function detectEvents(areaId: string, areaKm2: number, allScenes: SceneRecord[]): ChangeEvent[] {
-  const scenes = allScenes
-    .filter((s) => s.status === 'processed' && s.stats && s.sensor !== 'naip')
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const optical = allScenes.filter((s) => s.status === 'processed' && s.stats && s.sensor !== 'naip')
+  const hazy = hazyScenes(optical)
+  const scenes = optical.filter((s) => !hazy.has(s.id)).sort((a, b) => a.date.localeCompare(b.date))
   const events: ChangeEvent[] = []
 
   for (let i = 0; i < scenes.length; i++) {

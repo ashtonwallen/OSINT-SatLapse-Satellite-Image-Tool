@@ -29,6 +29,9 @@ export interface SceneRef {
   tile: string | null
   platform: string | null
   sensor: OpticalSensor
+  /** Aerosol optical thickness band (Sentinel-2 L2A), used to reject
+   *  hazy/smoky scenes the cloud mask misses. AOT = DN * scale. */
+  aot?: { href: string; scale: number }
   /** Native resolution of the reflectance bands, metres. */
   resolutionM: number
   bands: Record<BandKey, BandAsset>
@@ -79,10 +82,12 @@ const EARTH_SEARCH_KEYS: Record<BandKey, string> = {
 function normalizeEarthSearch(sourceId: SourceId) {
   return (item: StacItem): SceneRef => {
     const p = item.properties
-    // Legacy Earth Search items from baseline 04.00 set this flag when the
-    // +1000 DN offset was already removed from the pixels, yet still publish
-    // offset -0.1 in raster:bands. Honouring both would subtract it twice.
-    const alreadyApplied = p['earthsearch:boa_offset_applied'] === true
+    // The legacy collection's pixels never carry the +1000 DN offset (it was
+    // removed during ingestion) even though raster:bands advertises -0.1 and
+    // the earthsearch:boa_offset_applied flag is sometimes false. Verified
+    // against Planetary Computer raw DNs for flag=true and flag=false items.
+    // Collection 1 pixels do carry it, and its metadata is correct.
+    const alreadyApplied = sourceId === 'earth-search'
     const bands = {} as Record<BandKey, BandAsset>
     for (const k of BAND_KEYS) {
       const a = item.assets[EARTH_SEARCH_KEYS[k]]
@@ -100,6 +105,7 @@ function normalizeEarthSearch(sourceId: SourceId) {
       tile: (p['grid:code'] as string | undefined)?.replace(/^MGRS-/, '') ?? null,
       platform: (p.platform as string | undefined) ?? null,
       sensor: 'sentinel-2',
+      aot: item.assets.aot ? { href: item.assets.aot.href, scale: item.assets.aot['raster:bands']?.[0]?.scale ?? 0.001 } : undefined,
       resolutionM: 10,
       bands,
     }
@@ -132,6 +138,7 @@ function normalizePlanetaryComputer(item: StacItem): SceneRef {
     tile: (p['s2:mgrs_tile'] as string | undefined) ?? null,
     platform: (p.platform as string | undefined) ?? null,
     sensor: 'sentinel-2',
+    aot: item.assets.AOT ? { href: item.assets.AOT.href, scale: 0.001 } : undefined,
     resolutionM: 10,
     bands,
   }
@@ -309,8 +316,8 @@ export async function searchScenes(sourceId: SourceId, aoi: PolygonGeometry, opt
   return out
 }
 
-export async function resolveHref(scene: SceneRef, band: BandKey, signal?: AbortSignal): Promise<string> {
+export async function resolveHref(scene: SceneRef, band: BandKey | 'aot', signal?: AbortSignal): Promise<string> {
   const src = SOURCES[scene.sourceId]
-  const href = scene.bands[band].href
+  const href = band === 'aot' ? scene.aot!.href : scene.bands[band].href
   return src.sign ? src.sign(href, signal) : href
 }

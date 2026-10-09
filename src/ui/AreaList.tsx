@@ -1,4 +1,4 @@
-import { Pentagon, RefreshCw, Satellite, Square, TriangleAlert } from 'lucide-react'
+import { LoaderCircle, Pentagon, Play, RefreshCw, Satellite, Square, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { sceneId, type Area } from '../core/types'
 import { storage } from '../storage/idb'
@@ -20,7 +20,9 @@ function Thumb({ area }: { area: Area }) {
   )
 }
 
-export function AreaList({ areas, onOpen, onDraw }: { areas: Area[]; onOpen(a: Area): void; onDraw(mode: 'polygon' | 'rectangle'): void }) {
+export function AreaList({ areas, onOpen, onDraw, onExample }: { areas: Area[]; onOpen(a: Area): void; onDraw(mode: 'polygon' | 'rectangle'): void; onExample?(): Promise<void> }) {
+  const [loadingExample, setLoadingExample] = useState(false)
+  const [exampleError, setExampleError] = useState<string | null>(null)
   const draw = (
     <div className="grid grid-cols-2 gap-2">
       <Button variant="primary" onClick={() => onDraw('rectangle')}><Square size={14} /> Draw rectangle</Button>
@@ -48,6 +50,16 @@ export function AreaList({ areas, onOpen, onDraw }: { areas: Area[]; onOpen(a: A
           ))}
         </ol>
         {draw}
+        {onExample && (
+          <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
+            <p className="text-xs text-neutral-300">New here? See a finished example first: ten years of Lake Oroville, California, through droughts and floods.</p>
+            <Button variant="secondary" className="mt-2 w-full text-xs" disabled={loadingExample}
+              onClick={async () => { setLoadingExample(true); setExampleError(null); try { await onExample() } catch (e) { setExampleError(e instanceof Error ? e.message : String(e)) } finally { setLoadingExample(false) } }}>
+              {loadingExample ? <LoaderCircle size={13} className="animate-spin" /> : <Play size={13} />} Try an example
+            </Button>
+            {exampleError && <p className="mt-1 text-[11px] text-red-400">{exampleError}</p>}
+          </div>
+        )}
         <p className="text-[11px] leading-relaxed text-neutral-500">
           No account, no server, no API keys. Imagery comes straight from public archives into your browser, and everything you make stays on this device.
         </p>

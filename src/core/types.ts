@@ -99,6 +99,9 @@ export interface SceneStats {
   meanNdvi: number | null
   meanNdwi: number | null
   meanNdbi: number | null
+  /** Median blue/red reflectance over clear land: rises sharply under smoke or
+   *  haze the cloud mask misses. Compared per area in detect.ts (isHazy). */
+  haze?: number | null
   vsPrev?: ChangeStats
   vsBaseline?: ChangeStats
 }

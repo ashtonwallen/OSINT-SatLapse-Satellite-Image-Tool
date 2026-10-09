@@ -125,3 +125,14 @@ export async function createFromShare(shared: SharedProject, settings: AreaSetti
   for (const a of shared.areas) await createAndBackfill(inv.id, a.name, a.geometry, settings)
   return inv
 }
+
+/** Bundled, pre-processed example (served with the site, no imagery fetch). */
+export const EXAMPLE_URL = `${import.meta.env.BASE_URL}examples/oroville.satlapse`
+
+export async function loadExample(): Promise<Investigation> {
+  const res = await fetch(EXAMPLE_URL)
+  if (!res.ok) throw new Error(`Couldn't load the example (HTTP ${res.status})`)
+  const p = await importProjectFile(storage, new Uint8Array(await res.arrayBuffer()), { example: true, keepIds: true })
+  changed()
+  return p
+}

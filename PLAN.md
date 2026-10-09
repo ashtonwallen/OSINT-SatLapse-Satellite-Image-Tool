@@ -1,6 +1,6 @@
 # SatLapse plan (revised after the scope update)
 
-Status as of 2026-10-06: **Phase 1 done** (see SPIKE.md). **Phase 2 done; stopped at Checkpoint 2.** Phases 3 and 4 below include the scope update.
+Status as of 2026-10-07: **Phases 1–3 complete** (see HANDOFF.md for what was built, deviations and measurements). **Phase 4 not started.** The UI calls investigations "projects" (renamed 2026-10-06).
 
 ---
 

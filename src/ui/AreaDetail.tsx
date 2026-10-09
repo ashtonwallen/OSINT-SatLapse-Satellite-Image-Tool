@@ -1,13 +1,15 @@
 import {
   ChevronDown, ChevronLeft, Droplets, Image, Leaf, LocateFixed, Pause, Pencil, Play, RefreshCw,
-  StepBack, StepForward, Trash, TriangleAlert, Building, X, Columns2, Film, MapPin,
+  StepBack, StepForward, Trash, TriangleAlert, Building, X, Columns2, Film, MapPin, BellRing,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { copernicusAttribution } from '../core/attribution'
 import { gridCornersLngLat } from '../core/geo'
 import { DATA_SOURCES } from '../core/sources'
+import { hazyScenes } from '../core/detect'
 import { sensorOf, type Area, type ChangeEvent, type ChangeStats, type Confidence, type ImageKind, type SceneRecord } from '../core/types'
 import { addAnnotation, deleteArea, markSeen, renameArea } from '../app/actions'
+import { BRAND } from '../config/brand'
 import type { LngLat } from '../core/geo'
 import { engine } from '../app/engineClient'
 import { useAreaData, useImageCache, useProgress } from '../app/hooks'
@@ -76,6 +78,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
   const progress = useProgress(area.id)
   const cache = useImageCache(area.id)
   const s2Frames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) !== 'naip'), [scenes])
+  const hazy = useMemo(() => hazyScenes(s2Frames), [s2Frames])
   const aerialFrames = useMemo(() => scenes.filter((s) => s.status === 'processed' && sensorOf(s) === 'naip'), [scenes])
   const [collection, setCollection] = useState<Collection>('satellite')
   const aerial = collection === 'aerial' && aerialFrames.length > 0
@@ -99,6 +102,7 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
   const [beforeIdx, setBeforeIdx] = useState(0)
   const [exporting, setExporting] = useState(false)
   const [annot, setAnnot] = useState<{ lngLat: LngLat; text: string } | null>(null)
+  const [alertsInfo, setAlertsInfo] = useState(false)
   const running = area.sync.status === 'running' || area.sync.status === 'queued' || !!progress
 
   useEffect(() => { void markSeen(area) }, [area.id, area.sync.unseen])
@@ -277,6 +281,11 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
             <div>
               <div className="font-mono text-xl font-semibold leading-none text-white">{fmtDate(frame.date, 'short')}</div>
               <div className="mt-1 text-[11px] text-neutral-400">{relativeDays(frame.date)} · {aerial ? sensorLabel(frame) : `${frame.cloudPct.toFixed(0)}% cloud over area`}</div>
+              {!aerial && hazy.has(frame.id) && (
+                <div className="mt-1 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-200" title="This image is much hazier than usual for this area (blue/red ratio). Likely smoke or haze the cloud mask missed. It's excluded from flagged changes.">
+                  <TriangleAlert size={10} /> Possible smoke or haze
+                </div>
+              )}
             </div>
             <div className="flex items-center">
               <IconButton label="Previous scene (←)" onClick={() => step(-1)}><StepBack size={16} /></IconButton>
@@ -496,6 +505,23 @@ export function AreaDetail({ area, onBack, onFrame, onFit, onPickPoint, focusDat
           </dl>
         )}
       </div>
+
+      {BRAND.alertsWaitlistUrl && !area.example && (
+        <div className="rounded-lg border border-line">
+          <button type="button" onClick={() => setAlertsInfo((v) => !v)} aria-expanded={alertsInfo}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-neutral-300 hover:text-white">
+            <BellRing size={13} className="text-amber-300" /> Get alerts for this area
+          </button>
+          {alertsInfo && (
+            <div className="space-y-2 border-t border-line px-3 py-2 text-[11px] leading-relaxed text-neutral-400">
+              <p>Right now {BRAND.name} only checks for new imagery when you open it. A planned paid tier will watch your areas on a server and email or text you when a high-confidence change is flagged, with built-in AI summaries and larger areas.</p>
+              <p>Interested? Join the waitlist. This opens an external form; nothing about this area is sent unless you type it in.</p>
+              <a href={BRAND.alertsWaitlistUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md bg-amber-400 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-300">Join the alerts waitlist ↗</a>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 pb-2">
         {!area.example && (
