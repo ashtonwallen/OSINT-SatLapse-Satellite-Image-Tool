@@ -79,8 +79,8 @@ OLLAMA_ORIGINS=http://localhost:5173 ollama serve
 SatLapse includes a [Model Context Protocol](https://modelcontextprotocol.io) server that runs the same engine under Node, so an agent can do a whole investigation on its own: find a place, draw an area, download its satellite history, then analyse it with the same tools the in-app AI uses.
 
 ```bash
-# from the repo, after npm install
-claude mcp add satlapse -- npm run --silent --prefix "$(pwd)" mcp
+# from the repo, after npm install; --scope user makes it available in every project
+claude mcp add --scope user satlapse -- npm run --silent --prefix "$(pwd)" mcp
 ```
 
 For other clients (Claude Desktop, Cursor, …), add a stdio server with command `npm` and args `["run", "--silent", "--prefix", "/path/to/OSINT-SatLapse-Satellite-Image-Tool", "mcp"]`.

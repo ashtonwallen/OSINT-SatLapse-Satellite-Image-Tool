@@ -7,7 +7,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import type { CallToolResult, ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import sharp from 'sharp'
 import { z } from 'zod'
 import { ANALYSIS_INSTRUCTIONS, describeProject, type ProjectData } from '../ai/context'
@@ -328,9 +328,14 @@ Workflow: find a place (search_place), create an area of up to ${maxAreaKm2} kmÂ
   server.registerTool('export_project', {
     title: 'Export a project file',
     description: `Write a project to a ${PROJECT_EXT} file. Open it in the SatLapse web app ("Open project file") to replay, compare and export GIF/MP4 or reports.`,
-    inputSchema: { project_id: z.string(), path: z.string().describe(`Output file path ending in ${PROJECT_EXT}`) },
-  }, safe(async ({ project_id, path }) => {
+    inputSchema: {
+      project_id: z.string(),
+      path: z.string().describe(`Output file path ending in ${PROJECT_EXT}`),
+      overwrite: z.boolean().optional().describe('Replace an existing file at path (default false)'),
+    },
+  }, safe(async ({ project_id, path, overwrite }) => {
     if (!path.endsWith(PROJECT_EXT)) return fail(`The path must end in ${PROJECT_EXT}.`)
+    if (existsSync(path) && !overwrite) return fail(`${path} already exists. Pass overwrite: true to replace it.`)
     const { project } = await projectData(project_id)
     const bytes = await exportProjectFile(storage, project.id)
     writeFileSync(path, bytes)
@@ -340,8 +345,9 @@ Workflow: find a place (search_place), create an area of up to ${maxAreaKm2} kmÂ
   server.registerTool('import_project', {
     title: 'Import a project file',
     description: `Load a ${PROJECT_EXT} file exported from the web app (or by export_project) so its areas can be analysed and tracked here.`,
-    inputSchema: { path: z.string() },
+    inputSchema: { path: z.string().describe(`Path to a ${PROJECT_EXT} file`) },
   }, safe(async ({ path }) => {
+    if (!path.endsWith(PROJECT_EXT)) return fail(`Only ${PROJECT_EXT} files can be imported.`)
     const project = await importProjectFile(storage, new Uint8Array(readFileSync(path)))
     await store.save(project.id)
     const areas = (await storage.listAreas()).filter((a) => a.investigationId === project.id)
