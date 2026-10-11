@@ -10,6 +10,7 @@ npm run dev        # app at http://localhost:5173 (+ /security/, /methodology/, 
 npm test           # unit tests (vitest)
 npm run typecheck
 npm run build      # production build into dist/ (applies the strict CSP)
+npm run mcp        # MCP server on stdio, for AI agents
 npm run preview    # serve dist/ locally with the CSP header
 ```
 
@@ -35,6 +36,7 @@ Node 20+ is required. No API keys are needed for anything except optional AI fea
 | `src/ui/`, `src/App.tsx` | React UI |
 | `src/export/` | GIF/MP4 timelapse export, HTML/PDF report |
 | `src/pages/` | `/security` and `/methodology` |
+| `src/mcp/` | MCP server for AI agents (Node only, never bundled): tools over `src/core`, projects saved as `.satlapse` files |
 | `src/config/` | Branding (`brand.ts`), CSP host list, entitlements, app limits |
 | `scripts/` | Node tools: example generation, CSP sync, the Phase 1 spike |
 

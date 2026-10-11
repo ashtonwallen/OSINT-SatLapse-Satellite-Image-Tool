@@ -6,6 +6,7 @@ import { clearKey, getKey, getOllamaUrl, isPersisted, setKey, setOllamaUrl } fro
 import type { Draft } from '../ai/tools'
 import type { ChatMessage, Part, ProviderId } from '../ai/types'
 import { APP_CONFIG } from '../config/app'
+import { BRAND } from '../config/brand'
 import type { Investigation } from '../core/types'
 import { addAnnotation, updateInvestigation } from '../app/actions'
 import { buildBundle, createToolHost, keyScenes, loadProjectData } from '../app/aiHost'
@@ -131,6 +132,9 @@ export function AiPanel({ project }: { project: Investigation }) {
             <Download size={13} /> Prompt + images
           </Button>
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+          Using an AI agent like Claude Code or Cursor? {BRAND.name} also runs as an <a className="underline" href={`${BRAND.repoUrl}#use-with-ai-agents-mcp`} target="_blank" rel="noopener noreferrer">MCP server</a>, so the agent can pull and analyse imagery itself.
+        </p>
       </Section>
 
       <Section title="Chat with a model" aside={

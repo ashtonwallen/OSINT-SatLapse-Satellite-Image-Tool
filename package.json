@@ -2,7 +2,7 @@
   "name": "satlapse",
   "private": true,
   "version": "0.1.0",
-  "description": "Browser-only Sentinel-2 timelapse and change-detection OSINT tool",
+  "description": "Browser-only Sentinel-2 timelapse and change-detection OSINT tool, with an MCP server for AI agents",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "csp:sync": "jiti scripts/csp-sync.ts"
+    "csp:sync": "jiti scripts/csp-sync.ts",
+    "mcp": "jiti src/mcp/main.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -26,6 +27,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.6.4",
@@ -38,6 +40,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "zod": "^4.6.5"
   }
 }

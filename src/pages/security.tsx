@@ -52,6 +52,7 @@ npm run dev        # then open http://localhost:5173`}</pre>
           <li><b>Imagery requests</b> download public satellite data. They reveal the map extent you're looking at to those archives (Element84/AWS and Microsoft), as any map viewer would.</li>
           <li><b>Place search</b> sends your search text to Photon (komoot). It's only sent when you press Enter, not on every keystroke.</li>
           <li><b>AI providers</b> are contacted only after you add a key (or set up Ollama) and send a message. They receive your project summary and any images the model asks for. Anthropic is called with its official SDK in browser mode, which sends the <code>anthropic-dangerous-direct-browser-access</code> header.</li>
+          <li><b>The MCP server</b> (optional, for AI agents) is a separate program you run on your own computer from the source code. It contacts the same imagery archives and Photon listed above, saves projects as files in <code>~/.satlapse/mcp</code>, and is never loaded by this website.</li>
           <li><b>Share links</b> put only the project name and area outlines after the <code>#</code> in the URL. Browsers never send that part to a server.</li>
           <li>There are no analytics, trackers, ads, cookies or third-party scripts.</li>
         </ul>
