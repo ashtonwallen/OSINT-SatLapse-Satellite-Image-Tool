@@ -112,6 +112,7 @@ function Methodology() {
       <section className="space-y-3">
         <H2 id="ai">AI analysis (optional)</H2>
         <p>Everything above works without AI. Optionally you can copy the project summary into any AI chat, run a local model with Ollama, or use your own key with Anthropic, OpenAI, Google Gemini or OpenRouter. The model receives the summary statistics, flagged changes, annotations and notes, and must request specific images through tools. It can draft annotations and report sections, which are only saved if you approve them. AI output can be wrong; check it against the imagery.</p>
+        <p>AI agents such as Claude Code, Claude Desktop or Cursor can also use {BRAND.name} directly through its <a href={`${BRAND.repoUrl}#use-with-ai-agents-mcp`}>MCP server</a>. It runs the same engine, detection and analysis tools on your own computer, and saves projects as files you can open here.</p>
       </section>
 
       <section className="space-y-3">
