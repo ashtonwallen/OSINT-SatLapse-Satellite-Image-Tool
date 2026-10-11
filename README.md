@@ -22,11 +22,6 @@
 - **Tracking.** Each time you open the app it checks your areas for new imagery and badges what's new.
 - **Private by design.** Strict Content Security Policy, no analytics, data stays in your browser. Keys are memory-only by default. [How to verify →](https://satlapse.ashtonwilliamallen.com/security/)
 
-| Before/after swipe (satellite) | Aerial imagery, 2012 vs 2022 |
-|---|---|
-| ![Compare two dates](docs/screenshots/compare.jpg) | ![Aerial compare](docs/screenshots/aerial.jpg) |
-| **Flagged changes with confidence** | **Exported report** |
-| ![Flagged changes](docs/screenshots/changes.jpg) | ![Report](docs/screenshots/report.jpg) |
 
 ## How it works
 
