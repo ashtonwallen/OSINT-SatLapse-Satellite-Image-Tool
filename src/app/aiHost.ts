@@ -1,12 +1,12 @@
 // Connects the AI layer to local project data: loads everything the model
 // may see, answers tool calls, and builds the "Copy to AI" image bundle.
 import { strToU8, zipSync } from 'fflate'
-import { copernicusAttribution } from '../core/attribution'
 import { copyPrompt, type ProjectData } from '../ai/context'
+import { eventLine, filterEvents, nearestScene, sceneAttribution, sensorText, statsCsv, VIEW_KIND, VIEW_LABEL } from '../ai/format'
 import type { Draft, ImageView, ToolHost } from '../ai/tools'
 import type { Part } from '../ai/types'
 import { newId } from '../core/area'
-import type { ImageKind, SceneRecord } from '../core/types'
+import type { SceneRecord } from '../core/types'
 import { storage } from '../storage/idb'
 
 export async function loadProjectData(projectId: string): Promise<ProjectData> {
@@ -18,22 +18,6 @@ export async function loadProjectData(projectId: string): Promise<ProjectData> {
     areas: await Promise.all(areas.map(async (area) => ({ area, scenes: await storage.listScenes(area.id), events: await storage.listEvents(area.id) }))),
     annotations: await storage.listAnnotations(projectId),
   }
-}
-
-const VIEW_KIND: Record<ImageView, ImageKind> = {
-  true_color: 'tc', vegetation: 'ndvi', water: 'ndwi', built: 'ndbi', change_since_previous: 'chgPrev', change_since_first: 'chgBase',
-}
-const VIEW_LABEL: Record<ImageView, string> = {
-  true_color: 'true colour', vegetation: 'vegetation (NDVI)', water: 'water (NDWI)', built: 'built/bare (NDBI)',
-  change_since_previous: 'change since previous scene', change_since_first: 'change since first scene',
-}
-
-const sensorText = (s: SceneRecord) => s.sensor === 'naip' ? `NAIP aerial ${s.gsd} m` : s.sensor === 'landsat' ? 'Landsat 30 m' : 'Sentinel-2 10 m'
-const attribution = (s: SceneRecord) => s.sensor === 'naip' ? 'NAIP imagery: USDA (public domain)' : s.sensor === 'landsat' ? 'Landsat imagery courtesy of the U.S. Geological Survey' : copernicusAttribution(Number(s.date.slice(0, 4)))
-
-function nearest(scenes: SceneRecord[], date: string): SceneRecord | undefined {
-  const t = Date.parse(date)
-  return scenes.reduce<SceneRecord | undefined>((best, s) => (!best || Math.abs(Date.parse(s.date) - t) < Math.abs(Date.parse(best.date) - t) ? s : best), undefined)
 }
 
 /** Downscale to ≤maxDim on a dark background, optionally with a burned-in label bar. */
@@ -72,7 +56,6 @@ export function createToolHost(data: ProjectData, onDraft: (d: Draft) => void): 
     if (!a) throw new Error(`Unknown area_id "${String(id)}". Valid ids: ${data.areas.map((x) => `${x.area.id} (${x.area.name})`).join(', ')}`)
     return a
   }
-  const inRange = (d: string, i: Record<string, unknown>) => (!i.from || d >= String(i.from)) && (!i.to || d <= String(i.to))
   const text = (t: string): Part[] => [{ type: 'text', text: t }]
 
   return {
@@ -80,17 +63,11 @@ export function createToolHost(data: ProjectData, onDraft: (d: Draft) => void): 
       switch (name) {
         case 'get_stats': {
           const a = areaOf(input.area_id)
-          const rows = a.scenes.filter((s) => s.status === 'processed' && s.stats && inRange(s.date, input))
-          if (!rows.length) return text('No processed scenes in that range.')
-          return text(['date,sensor,vegetation_pct,water_pct,built_pct,cloud_pct',
-            ...rows.map((s) => `${s.date},${s.sensor ?? 'sentinel-2'},${s.stats!.vegPct.toFixed(1)},${s.stats!.waterPct.toFixed(1)},${s.stats!.builtPct.toFixed(1)},${s.cloudPct.toFixed(1)}`)].join('\n'))
+          return text(statsCsv(a.scenes, input) ?? 'No processed scenes in that range.')
         }
         case 'list_events': {
-          const rank = { low: 0, medium: 1, high: 2 }
-          const min = rank[(input.min_confidence as keyof typeof rank) ?? 'low']
-          const ev = data.areas.filter((x) => !input.area_id || x.area.id === input.area_id).flatMap((x) => x.events)
-            .filter((e) => (!input.kind || e.kind === input.kind) && inRange(e.date, input) && rank[e.confidence ?? 'low'] >= min)
-          return text(ev.length ? ev.map((e) => `${e.date} [${e.confidence}, ${e.method}] (${areaOf(e.areaId).area.name}) ${e.title}: ${e.description}`).join('\n') : 'No matching events.')
+          const ev = filterEvents(data.areas.filter((x) => !input.area_id || x.area.id === input.area_id).flatMap((x) => x.events), input)
+          return text(ev.length ? ev.map((e) => eventLine(e, areaOf(e.areaId).area.name)).join('\n') : 'No matching events.')
         }
         case 'list_annotations':
           return text(data.annotations.length ? data.annotations.map((a) => `${a.date} at ${a.lngLat[1].toFixed(5)},${a.lngLat[0].toFixed(5)}: ${a.text}`).join('\n') : 'No annotations yet.')
@@ -100,7 +77,7 @@ export function createToolHost(data: ProjectData, onDraft: (d: Draft) => void): 
           const view = (input.view as ImageView | undefined) ?? 'true_color'
           if (aerial && view !== 'true_color' && view !== 'vegetation') throw new Error('Aerial images are only available as true_color or vegetation.')
           const pool = a.scenes.filter((s) => s.status === 'processed' && (aerial ? s.sensor === 'naip' : s.sensor !== 'naip'))
-          const s = nearest(pool, String(input.date))
+          const s = nearestScene(pool, String(input.date))
           if (!s) throw new Error(aerial ? 'No aerial imagery for this area (NAIP covers the contiguous US only).' : 'No processed scenes for this area.')
           const blob = await storage.getImage(s.id, VIEW_KIND[view])
           if (!blob) throw new Error(`No ${VIEW_LABEL[view]} image stored for ${s.date}${view.startsWith('change') ? ' (the first scene has no change overlay)' : ''}.`)
@@ -151,7 +128,7 @@ export async function buildBundle(data: ProjectData): Promise<Blob> {
     const blob = await storage.getImage(p.scene.id, 'tc')
     if (!blob) continue
     const name = `${String(i + 1).padStart(2, '0')}_${p.scene.date}_${p.area.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.jpg`
-    const labelled = await encode(blob, 1600, `${p.area} · ${p.scene.date} · ${sensorText(p.scene)} · ${p.why}`, attribution(p.scene))
+    const labelled = await encode(blob, 1600, `${p.area} · ${p.scene.date} · ${sensorText(p.scene)} · ${p.why}`, sceneAttribution(p.scene))
     files[`images/${name}`] = new Uint8Array(await labelled.arrayBuffer())
     lines.push(`- images/${name}: ${p.area}, ${p.scene.date}, ${sensorText(p.scene)}, ${p.why}`)
   }
