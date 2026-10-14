@@ -1,6 +1,6 @@
 // Registry of imagery and data sources. Every source the app can use is
 // described here, free or paid, so availability, gating (entitlements) and
-// documentation come from one place. See PLAN.md "Data source strategy".
+// documentation come from one place.
 export type SourceKind = 'optical' | 'aerial' | 'radar' | 'thermal' | 'night-lights' | 'fire' | 'atmosphere' | 'landcover' | 'elevation'
 
 export interface DataSourceInfo {

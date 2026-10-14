@@ -8,7 +8,7 @@ export type Feature =
   | 'backfill' | 'tracking' | 'aerialImagery' | 'landsatHistory'
   | 'export' | 'reports' | 'shareLinks'
   | 'aiCopy' | 'aiLocal' | 'aiByoKey'
-  // Planned paid features (no implementation yet; see HANDOFF.md).
+  // Planned paid features (no implementation yet).
   | 'serverTracking' | 'alerts' | 'hostedAi' | 'onDemandHighRes'
 
 const FEATURE_TIER: Record<Feature, Tier | 'unavailable'> = {

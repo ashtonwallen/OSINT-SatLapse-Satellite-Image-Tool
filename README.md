@@ -38,7 +38,7 @@ MCP client (Claude Code, Cursor, …)
  └─ stdio ──► src/mcp: the same src/core engine under Node, projects saved as .satlapse files
 ```
 
-The engine in `src/core` has no browser dependencies. It runs in a Web Worker today and under Node (`scripts/sync-node.ts`), so a future server can reuse it unchanged. See [HANDOFF.md](HANDOFF.md) for the full architecture, decisions and measured performance, and [SPIKE.md](SPIKE.md) for the feasibility work behind each data source.
+The engine in `src/core` has no browser dependencies. It runs in a Web Worker today and under Node (`scripts/sync-node.ts`), so a future server can reuse it unchanged.
 
 ## Run locally
 
@@ -114,6 +114,6 @@ Configuration lives in `src/config/`:
 
 Contains modified Copernicus Sentinel data. Landsat imagery courtesy of the U.S. Geological Survey. NAIP imagery from the USDA Farm Production and Conservation Business Center (public domain). Basemap © OpenFreeMap, OpenMapTiles, OpenStreetMap contributors; high-res basemap from USGS The National Map. Place search by Photon (komoot), data © OpenStreetMap contributors. Exports carry the required credits automatically.
 
-## Contributing & licence
+## Licence
 
-Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under [AGPL-3.0](LICENSE).
+Licensed under [AGPL-3.0](LICENSE).

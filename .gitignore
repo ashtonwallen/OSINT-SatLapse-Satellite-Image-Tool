@@ -4,3 +4,9 @@ dist
 .DS_Store
 *.tsbuildinfo
 .claude/
+
+# Local development notes
+/CONTRIBUTING.md
+/HANDOFF.md
+/PLAN.md
+/SPIKE.md
