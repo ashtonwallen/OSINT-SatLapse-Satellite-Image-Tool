@@ -1,119 +1,64 @@
 # SatLapse
 
-**Watch any place on Earth change.** Draw an area on a map, pull its full satellite history, replay how it changed, get flagged changes with confidence levels, and (optionally) analyse it with AI. Free, open source, and it runs entirely in your browser: no server, no account, no API keys. It also ships as an **MCP server**, so AI agents like Claude Code, Claude Desktop or Cursor can run the same engine themselves.
+Draw an area on a map, pull its full satellite history and replay how it
+changed. It runs in your browser with no server, account or API keys. It also
+ships as an MCP server, so AI agents can use the same engine.
 
-**Live:** https://satlapse.ashtonwilliamallen.com · [Methodology](https://satlapse.ashtonwilliamallen.com/methodology/) · [Security & privacy](https://satlapse.ashtonwilliamallen.com/security/)
+**Live:** <https://satlapse.ashtonwilliamallen.com> ·
+[Methodology](https://satlapse.ashtonwilliamallen.com/methodology/) ·
+[Security](https://satlapse.ashtonwilliamallen.com/security/)
 
 ![Ten years of Lake Oroville, California, replayed in SatLapse](docs/replay.gif)
 
 ## Features
 
-- **Any area, full history.** Search or pan, draw a polygon or rectangle (up to 100 km²), and SatLapse fetches every clear Sentinel-2 pass since 2015, or back to **1984 with Landsat**, harmonised so charts stay comparable.
-- **Cloud screening that matters.** Cloud cover is measured over *your polygon*, from per-pixel classification layers rather than whole-tile metadata. Choose every clear scene, or the best per month or quarter.
-- **High-res aerial imagery (US).** NAIP aerial photos at 0.3–1 m, every 2–3 years, alongside the 10 m satellite timeline, plus a high-res imagery basemap.
-- **Replay & compare.** A timelapse player with a time-proportional timeline, true colour / vegetation / water / built-up views, change highlights, a synced chart, and a before/after swipe for any two dates.
-- **Seasonal-aware change detection.** Each scene is compared with *the same time of year* in earlier years, so harvests, snow and reservoir cycles don't raise false alarms. Every flagged change carries a confidence level and a plain-language explanation.
-- **Projects.** Group areas, keep Markdown notes, pin annotations to a place and date ("new structure appears here"), and see everything on one timeline.
-- **Export & share.** GIF and MP4 timelapses with attribution burned in. Self-contained HTML/PDF reports where every finding cites its scene date, sensor and source ID. Portable project files. Share links that carry only area outlines.
-- **Optional AI analysis**, in three layers of trust:
-  - *Copy to AI*: paste the project into any chat, no key needed.
-  - *Local models* via Ollama.
-  - *Your own key* for Anthropic, OpenAI, Google Gemini or OpenRouter. The model requests specific images through tools, and anything it drafts is saved only if you approve it.
-- **MCP server for AI agents.** Run `npm run mcp` and any MCP client can search places, create areas, pull and process imagery, read flagged changes, look at scenes and write findings. Projects it creates open in the web app. [Setup ↓](#use-with-ai-agents-mcp)
-- **Tracking.** Each time you open the app it checks your areas for new imagery and badges what's new.
-- **Private by design.** Strict Content Security Policy, no analytics, data stays in your browser. Keys are memory-only by default. [How to verify →](https://satlapse.ashtonwilliamallen.com/security/)
-
-
-## How it works
-
-```
-Browser
- ├─ STAC search ──► Element84 Earth Search, Microsoft Planetary Computer
- ├─ HTTP range reads of Cloud Optimized GeoTIFFs (only the pixels over your area)
- ├─ Web Worker engine: screen clouds → sample → mosaic → indices → change → events
- ├─ IndexedDB: projects, imagery, stats, notes, annotations
- └─ (optional) AI provider APIs, called directly with your key or a local Ollama
-
-MCP client (Claude Code, Cursor, …)
- └─ stdio ──► src/mcp: the same src/core engine under Node, projects saved as .satlapse files
-```
-
-The engine in `src/core` has no browser dependencies. It runs in a Web Worker today and under Node (`scripts/sync-node.ts`), so a future server can reuse it unchanged.
+- **Full imagery history** for any area up to 100 km²: Sentinel-2 since 2015,
+  Landsat since 1984, and NAIP aerial photos in the US
+- **Cloud screening** measured over your area, not the whole tile
+- **Timelapse replay** with vegetation, water and built-up views, plus a
+  before/after swipe
+- **Change detection** that compares the same season across years, with a
+  confidence level on each flagged change
+- **Projects** with notes, pinned annotations, and GIF, MP4, HTML and PDF
+  exports
+- **Optional AI analysis:** copy the project into any chat, run a local Ollama
+  model, or use your own key
+- **Private:** strict CSP, no analytics, and data stays in your browser
 
 ## Run locally
 
-Requires Node 20+.
+Node 20+:
 
 ```bash
-git clone https://github.com/ashtonwallen/OSINT-SatLapse-Satellite-Image-Tool.git
-cd OSINT-SatLapse-Satellite-Image-Tool
 npm install
-npm run dev
+npm run dev     # http://localhost:5173
+npm test
+npm run build   # static site in dist/
 ```
 
-Open http://localhost:5173. Other commands:
+## MCP server
 
-| Command | What it does |
-|---|---|
-| `npm test` | Unit tests |
-| `npm run build` | Production build into `dist/` (with the strict CSP) |
-| `npm run preview` | Serve `dist/` locally with the CSP header |
-| `npm run csp:sync` | Update `vercel.json` after changing `src/config/csp.ts` |
-| `npm run mcp` | Start the MCP server on stdio (see [Use with AI agents](#use-with-ai-agents-mcp)) |
-| `npx jiti scripts/sync-node.ts …` | Run a backfill under Node and write a project file (see the script header) |
-| `npx jiti scripts/media.ts` | Regenerate `docs/replay.gif` and `public/og.png` from the example |
-
-Using a local AI model: install [Ollama](https://ollama.com), pull a vision model (`ollama pull qwen2.5vl`), and start it with your app's origin allowed:
+Agents can find a place, create an area, download its history, read flagged
+changes and write findings:
 
 ```bash
-OLLAMA_ORIGINS=http://localhost:5173 ollama serve
-```
-
-## Use with AI agents (MCP)
-
-SatLapse includes a [Model Context Protocol](https://modelcontextprotocol.io) server that runs the same engine under Node, so an agent can do a whole investigation on its own: find a place, draw an area, download its satellite history, then analyse it with the same tools the in-app AI uses.
-
-```bash
-# from the repo, after npm install; --scope user makes it available in every project
 claude mcp add --scope user satlapse -- npm run --silent --prefix "$(pwd)" mcp
 ```
 
-For other clients (Claude Desktop, Cursor, …), add a stdio server with command `npm` and args `["run", "--silent", "--prefix", "/path/to/OSINT-SatLapse-Satellite-Image-Tool", "mcp"]`.
-
-Then ask something like *"Use SatLapse to check what changed around Lake Mead over the last three years."*
-
-| Tool | What it does |
-|---|---|
-| `search_place` | Find a place and its bounding box (Photon / OpenStreetMap) |
-| `find_imagery` | Quick catalogue search: which Sentinel-2 dates exist over a box, no downloads |
-| `create_area` | Create an area from a bbox or polygon (up to 100 km²) in a new or existing project |
-| `sync_area` | Backfill or track: cloud screening, download, processing and change detection, with progress |
-| `list_projects` / `describe_project` | Saved projects, and the full analysis context (time series, flagged changes, notes) |
-| `get_stats` / `list_events` | Land-cover time series (CSV) and flagged changes with confidence |
-| `get_scene_image` | A true colour, index or change-overlay image for any date, with attribution |
-| `add_annotation` / `add_note` | Record findings (marked as AI-authored) |
-| `export_project` / `import_project` | Move projects to and from the web app as `.satlapse` files |
-
-Projects are saved as `.satlapse` files in `~/.satlapse/mcp` (override with `SATLAPSE_DATA_DIR`; `SATLAPSE_MAX_AREA_KM2` raises the area limit). The server only contacts the public imagery catalogues and Photon, the same hosts as the web app, and needs no API keys.
+Other clients: add a stdio server that runs `npm run --silent --prefix <repo> mcp`.
+Projects save to `~/.satlapse/mcp` and open in the web app. No keys are needed.
 
 ## Deploy
 
-SatLapse is a static site. `npm run build` outputs `dist/`, which runs on any static host with no code changes.
+It's a static site. `vercel.json` is set up for Vercel, and for other hosts
+the build is `npm run build` with output in `dist`. Settings live in
+`src/config/`.
 
-- **Vercel** (configured): import the repo. `vercel.json` sets the build, clean URLs, caching and security headers (including the CSP). Add your domain under *Settings → Domains*.
-- **Cloudflare Pages / Netlify:** build command `npm run build`, output `dist`. The generated `dist/_headers` applies the CSP.
-- **GitHub Pages or any sub-path:** `BASE_PATH=/your-repo/ npm run build`.
+## Attribution
 
-Configuration lives in `src/config/`:
-- `brand.ts`: name, domain, colours, repo URL, alerts waitlist URL.
-- `app.ts`: limits; override at build time with `VITE_MAX_AREA_KM2`.
-- `csp.ts`: allowed hosts.
-- `entitlements.ts`: free/paid feature gates.
+Contains modified Copernicus Sentinel data. Landsat imagery courtesy of USGS.
+NAIP imagery from the USDA. Map data © OpenFreeMap, OpenMapTiles and
+OpenStreetMap contributors. Place search by Photon. Exports include the
+required credits.
 
-## Data & attribution
-
-Contains modified Copernicus Sentinel data. Landsat imagery courtesy of the U.S. Geological Survey. NAIP imagery from the USDA Farm Production and Conservation Business Center (public domain). Basemap © OpenFreeMap, OpenMapTiles, OpenStreetMap contributors; high-res basemap from USGS The National Map. Place search by Photon (komoot), data © OpenStreetMap contributors. Exports carry the required credits automatically.
-
-## Licence
-
-Licensed under [AGPL-3.0](LICENSE).
+[AGPL-3.0](LICENSE).
